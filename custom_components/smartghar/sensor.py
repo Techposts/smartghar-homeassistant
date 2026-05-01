@@ -90,7 +90,8 @@ TANK_SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_registry_enabled_default=False,
+        # Visible by default — the field most users actually want to monitor
+        # ("is the TX still close enough to the hub?"). Toggle off if too noisy.
     ),
     SensorEntityDescription(
         key="conn_state",

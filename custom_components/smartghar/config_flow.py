@@ -106,11 +106,23 @@ class SmartGharConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not hub_id:
             return self.async_abort(reason="missing_hub_id")
 
-        self._discovered_host = discovery_info.host or str(discovery_info.ip_address)
+        # Prefer the mDNS hostname (e.g. "tanksync-f6dc.local") over the resolved
+        # IP. The hostname is MAC-derived and survives DHCP lease changes; the
+        # IP is whatever the hub got this lease cycle. Storing the hostname means
+        # HA re-resolves it on every request, so a rotated IP is handled
+        # transparently. Trailing dot is stripped because aiohttp doesn't like it.
+        hostname = (discovery_info.hostname or "").rstrip(".")
+        ip_str = discovery_info.host or (
+            str(discovery_info.ip_address) if discovery_info.ip_address else ""
+        )
+        self._discovered_host = hostname or ip_str
+
         self._discovered_hub_id = hub_id
         # Hub friendly name not in TXT yet; fall back to mDNS instance.
         self._discovered_name = (
-            discovery_info.name.split(".")[0] if discovery_info.name else None
+            discovery_info.name.split(".")[0].replace("\\032", " ")
+            if discovery_info.name
+            else None
         )
 
         await self.async_set_unique_id(hub_id)

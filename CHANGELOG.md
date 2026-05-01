@@ -2,6 +2,22 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## v0.3.1 — DHCP resilience, broken-icon fix, LoRa-signal default-visible
+
+Polish release fixing the things users hit on first install of v0.3.0.
+
+### Fixed
+- **Broken icon image** in HACS / GitHub README: switched from relative `assets/icon.svg` to absolute `raw.githubusercontent.com` PNG URLs so HACS's README rendering can resolve the image.
+- **DHCP resilience**: zeroconf flow now stores the mDNS **hostname** (`tanksync-XXXX.local`) instead of the resolved IP. The hostname is MAC-derived and stable across DHCP lease renewals — IP changes are now handled transparently by the OS resolver at request time. Manual entries can also use either IP or hostname.
+- **`{name}` placeholder substitution**: the zeroconf confirmation form was showing literal `{name}` instead of the discovered hub's name. Form copy rewritten to drop the brittle placeholder and use the more reliable `{host}`, plus added explicit reassurance that DHCP changes are OK.
+- **Service-instance name decoding**: `\032` escape sequences (encoded spaces in mDNS instance names) are now properly decoded back to spaces.
+
+### Changed
+- **LoRa signal sensor visible by default** per tank — the most useful diagnostic for "is my TX still in range?". Was hidden in v0.3.0; flipped to visible.
+
+### Migration
+Existing v0.3.0 installs that stored an IP will continue to work (HA tries the stored host as-is). When zeroconf re-fires after the update, the hostname will replace the stored IP automatically. To force-update immediately, remove and re-add the hub.
+
 ## v0.3.0 — Real-time push, event entities, OTA-available indicator
 
 **`iot_class` flips from `local_polling` to `local_push`** — the integration now subscribes to the hub's `/api/v1/stream` WebSocket and receives state updates every ~3 seconds. If the WS connection drops, it falls back to 30s polling and reconnects with exponential backoff. Polling stays as the safety net for static-ish fields (hub_id, fw_version, etc.) that aren't in WS snapshots.

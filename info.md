@@ -1,3 +1,5 @@
+<p align="center"><img src="https://raw.githubusercontent.com/Techposts/smartghar-homeassistant/main/assets/icon.png" alt="SmartGhar" width="96" height="96"/></p>
+
 # SmartGhar
 
 Local-first Home Assistant integration for the SmartGhar IoT product family — TankSync (water tanks), PowerSync (energy, coming soon), and accessories that pair with the SmartGhar Hub.

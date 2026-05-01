@@ -11,7 +11,7 @@
       },
       "zeroconf_confirm": {
         "title": "SmartGhar Hub discovered",
-        "description": "Found '{name}' at {host}. Add it to Home Assistant?"
+        "description": "A SmartGhar Hub is reachable at `{host}` on your network. The hub is identified by its MAC address, so this connection survives DHCP lease changes (the hostname stays stable even when the IP rotates).\n\nAdd it to Home Assistant?"
       }
     },
     "error": {
