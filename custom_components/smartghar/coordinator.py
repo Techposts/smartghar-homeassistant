@@ -38,6 +38,9 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.hub_id = hub_id
 
     async def _async_update_data(self) -> dict[str, Any]:
+        # LED state is fetched alongside info+devices so all polled state is
+        # consistent on the same tick. Errors on /led are non-fatal — older
+        # firmware may not expose the v1 alias yet.
         try:
             info, devices = await asyncio.gather(
                 self.client.get_info(),
@@ -48,7 +51,18 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except SmartGharApiError as err:
             raise UpdateFailed(f"Hub {self.hub_id} API error: {err}") from err
 
-        return {"info": info, "devices": devices}
+        led: dict[str, Any] = {}
+        try:
+            led = await self.client.get_led()
+        except SmartGharApiError as err:
+            _LOGGER.debug("LED state unavailable on hub %s: %s", self.hub_id, err)
+
+        return {"info": info, "devices": devices, "led": led}
+
+    @property
+    def led(self) -> dict[str, Any]:
+        """Latest LED config snapshot."""
+        return self.data.get("led", {}) if self.data else {}
 
     @property
     def info(self) -> dict[str, Any]:

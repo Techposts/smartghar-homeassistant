@@ -93,3 +93,56 @@ class SmartGharHubClient:
         """List of attached devices (tanks, eventually power meters etc.)."""
         data = await self._get("/api/v1/devices")
         return data.get("devices", [])
+
+    async def _put(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        url = self._base / path.lstrip("/")
+        try:
+            async with self._session.put(
+                url, headers=self._headers(), json=payload, timeout=self._timeout
+            ) as resp:
+                if resp.status == 401:
+                    raise SmartGharInvalidAuth(f"Token rejected: {url}")
+                if resp.status >= 400:
+                    text = await resp.text()
+                    raise SmartGharApiError(
+                        f"HTTP {resp.status} for PUT {url}: {text[:200]}"
+                    )
+                return await resp.json(content_type=None)
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            raise SmartGharCannotConnect(f"Could not reach {url}: {err}") from err
+
+    async def _post(self, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        url = self._base / path.lstrip("/")
+        try:
+            async with self._session.post(
+                url, headers=self._headers(), json=payload or {}, timeout=self._timeout
+            ) as resp:
+                if resp.status == 401:
+                    raise SmartGharInvalidAuth(f"Token rejected: {url}")
+                if resp.status >= 400:
+                    text = await resp.text()
+                    raise SmartGharApiError(
+                        f"HTTP {resp.status} for POST {url}: {text[:200]}"
+                    )
+                if resp.status == 204:
+                    return None
+                return await resp.json(content_type=None)
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            raise SmartGharCannotConnect(f"Could not reach {url}: {err}") from err
+
+    async def update_device(self, device_id: int, fields: dict[str, Any]) -> dict[str, Any]:
+        """Edit one or more device config fields. Maps to PUT /api/v1/devices/<id>."""
+        return await self._put(f"/api/v1/devices/{device_id}", fields)
+
+    async def get_led(self) -> dict[str, Any]:
+        """Hub LED config — count, brightness, per-tank colors."""
+        return await self._get("/api/v1/hub/led")
+
+    async def put_led(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Update hub LED config (partial update)."""
+        return await self._put("/api/v1/hub/led", fields)
+
+    async def trigger_ota_check(self) -> None:
+        """Trigger an OTA manifest fetch. Hub responds immediately; check
+        runs in background."""
+        await self._post("/api/v1/hub/ota/check")

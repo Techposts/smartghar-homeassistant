@@ -47,6 +47,24 @@
       "tank_state": {
         "name": "Connection state"
       }
+    },
+    "text": {
+      "tank_name": {
+        "name": "Name"
+      }
+    },
+    "number": {
+      "tank_capacity": {
+        "name": "Capacity"
+      },
+      "led_brightness": {
+        "name": "LED brightness"
+      }
+    },
+    "button": {
+      "ota_check": {
+        "name": "Check for firmware updates"
+      }
     }
   }
 }
