@@ -5,7 +5,7 @@
 
 Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring), **PowerSync** (energy meter, coming soon), and other accessories that pair with the SmartGhar Hub.
 
-> **Status: Pre-alpha (v0.0.1).** Repository scaffolded; integration logic ships with hub firmware **`rx-v2.8.0`** which exposes the local HTTP/WebSocket API this integration consumes. Watch this repo for v0.1.0 release.
+> **Status: v0.2.0 — bidirectional control via polling.** Functional end-to-end against hub firmware **rx-v2.7.0** (Phase 1.1 + 1.2). WebSocket-based real-time push is on track for v0.3.0 + firmware Phase 1.3. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Why this exists
 
@@ -20,19 +20,24 @@ Most consumer IoT integrations require a cloud account, an OAuth dance, and outb
 
 The TankSync cloud and PWA continue to operate alongside this integration — they're for away-from-home access. They are *not* a dependency for HA users.
 
-## What you'll get (once v0.1.0 ships)
+## What you get today (v0.2.0)
 
 For each SmartGhar Hub on your LAN:
 
-- **Tank sensors**: level (%), TX battery voltage, LoRa signal strength, last-seen timestamp
-- **Fill events** (HA event entities): `fill_complete`, `low_threshold_crossed`, `leak_detected`
-- **Editable entities**: tank names, low-water thresholds, capacity values
-- **Hub controls**: identify (blink LED), OTA check, WiFi forget, uptime/firmware sensors
-- **LED strip**: full HA `light` entity (brightness, color, mode)
-- **Display config**: brightness, rotation
-- **Real-time**: WebSocket-pushed state changes — no polling
+**Sensors (read-only, per tank)** — `level (%)`, `TX battery voltage`, `LoRa signal`, `connection state`  
+**Sensors (per hub, hidden by default)** — `uptime`, `wifi_rssi`, `firmware_version`  
+**Editable entities** — `tank name` (text), `tank capacity` (number, litres), `LED brightness` (number, 0–255)  
+**Buttons** — `Check for firmware updates` (per hub)
 
-Future products (PowerSync, GasSync, etc.) auto-discover under the same integration.
+State updates every 30 seconds via polling. Edits propagate to the SmartGhar PWA via the hub's existing config-sync MQTT pipeline, so a rename in HA shows up in the PWA seconds later.
+
+## What's coming next
+
+| Version | Adds | Requires |
+|---|---|---|
+| **v0.3.0** | Real-time push, `light` entity for full LED control, `event` entities for `fill_complete` / `leak_detected` | Hub firmware Phase 1.3 (WebSocket `/api/v1/stream`) |
+| **v0.4.0** | Cross-product (PowerSync, GasSync etc. auto-discover) | Ecosystem device-kind protocol expansion |
+| **v0.5.0+** | Custom Lovelace tank capsule card, Hindi translations, more languages | — |
 
 ## Installation (planned)
 
