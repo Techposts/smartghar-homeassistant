@@ -147,6 +147,12 @@ class SmartGharHubClient:
         runs in background."""
         await self._post("/api/v1/hub/ota/check")
 
+    async def trigger_ota_install(self) -> None:
+        """Trigger an OTA install of the available firmware. Hub responds
+        immediately; download + flash + reboot run in background. The hub
+        will be unreachable for ~60s during the flash."""
+        await self._post("/api/v1/hub/ota/install")
+
     def ws_url(self) -> str:
         """Build the ws:// URL for /api/v1/stream."""
         return f"ws://{self.host}:{self._base.port or DEFAULT_PORT}/api/v1/stream"

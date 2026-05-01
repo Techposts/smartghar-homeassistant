@@ -29,6 +29,7 @@ PLATFORMS: list[Platform] = [
     Platform.TEXT,
     Platform.BUTTON,
     Platform.EVENT,
+    Platform.UPDATE,
 ]
 
 

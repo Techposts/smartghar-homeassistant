@@ -2,6 +2,24 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## v0.4.0 — `update` entity, water volume, Lovelace beautification
+
+Beautification + UX polish release. Adds HA-native firmware update UX, the missing computed sensors that fluid-level cards need, and a comprehensive guide to making tanks *look* great in dashboards.
+
+### Added
+- **`update` platform per hub** — firmware updates now show in HA's sidebar Updates section with native Install button, version tracking, and release notes (replaces / complements the `binary_sensor` for OTA-available)
+- **`sensor.tank_<n>_water_volume`** (litres) — computed from `capacity_l × level_pct / 100`. Fills the gap visual cards expect and lets users display "X / Y litres" alongside the percentage
+- **`tank-silhouette.svg`** in `assets/` — clean cylindrical overhead-tank shape users drop into `/config/www/` to use as a transparent background for fluid-level cards
+- **`docs/lovelace-beautification.md`** — comprehensive recipes for the wavy-water-fill look (`lovelace-fluid-level-background-card`), Mushroom status badges, history graphs, multi-tank auto-discovery, plus a combined dashboard example
+- API client: `trigger_ota_install()` for the new update entity's Install button
+
+### Changed
+- `level_pct` sensor now uses `suggested_display_precision=0` (no fractional percentages clutter)
+- LoRa signal sensor gets a `mdi:signal` icon for clarity in entity lists
+
+### Future direction
+- **v0.5.0+**: native `smartghar-lovelace` custom card with brand-consistent capsule visualisation (separate repo: `smartghar-lovelace`). Until then, the community fluid-level card paired with our tank silhouette gives the same visual.
+
 ## v0.3.1 — DHCP resilience, broken-icon fix, LoRa-signal default-visible
 
 Polish release fixing the things users hit on first install of v0.3.0.

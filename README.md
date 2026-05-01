@@ -4,11 +4,11 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.3.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](CHANGELOG.md)
 
 Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring), **PowerSync** (energy meter, coming soon), and other accessories that pair with the SmartGhar Hub.
 
-> **Status: v0.3.0 — real-time push via WebSocket.** Functional end-to-end against hub firmware **rx-v2.7.0** (Phase 1.1 + 1.2 + 1.3). State updates arrive every ~3 seconds with a 30-second polling fallback. See [CHANGELOG.md](CHANGELOG.md).
+> **Status: v0.4.0 — beautification + native update UX.** Real-time push via WebSocket against hub firmware **rx-v2.7.0**. State updates arrive every ~3 seconds. Tank water volume (litres) computed locally; HA `update` entity for firmware OTA. See [docs/lovelace-beautification.md](docs/lovelace-beautification.md) for the wavy-water tank look. Full notes: [CHANGELOG.md](CHANGELOG.md).
 
 ## Why this exists
 

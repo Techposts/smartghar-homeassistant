@@ -24,6 +24,7 @@ from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     UnitOfElectricPotential,
     UnitOfTime,
+    UnitOfVolume,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -75,6 +76,7 @@ TANK_SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:water-percent",
+        suggested_display_precision=0,
     ),
     SensorEntityDescription(
         key="voltage",
@@ -90,8 +92,7 @@ TANK_SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         state_class=SensorStateClass.MEASUREMENT,
-        # Visible by default — the field most users actually want to monitor
-        # ("is the TX still close enough to the hub?"). Toggle off if too noisy.
+        icon="mdi:signal",
     ),
     SensorEntityDescription(
         key="conn_state",
@@ -99,6 +100,12 @@ TANK_SENSORS: tuple[SensorEntityDescription, ...] = (
         icon="mdi:lan-connect",
     ),
 )
+
+
+# Computed sensors — derived from device state/config in the integration,
+# not pulled from a hub field. These are what visual cards (fluid-level,
+# mushroom, etc.) typically render alongside the level percentage.
+COMPUTED_TANK_SENSORS = ("water_volume_l",)
 
 
 # ─── Setup ────────────────────────────────────────────────────────────────────
@@ -124,6 +131,8 @@ async def async_setup_entry(
             continue
         for desc in TANK_SENSORS:
             entities.append(SmartGharTankSensor(coordinator, desc, dev["id"]))
+        # Computed tank sensors — derived from level + capacity.
+        entities.append(SmartGharTankWaterVolume(coordinator, dev["id"]))
 
     async_add_entities(entities)
 
@@ -210,4 +219,54 @@ class SmartGharTankSensor(_SmartGharBase):
     def available(self) -> bool:
         # Mark unavailable if the tank dropped off the registry between polls
         # (e.g., user removed it via PWA).
+        return super().available and self.coordinator.device_by_id(self._tank_id) is not None
+
+
+class SmartGharTankWaterVolume(CoordinatorEntity[SmartGharCoordinator], SensorEntity):
+    """Computed: current water volume in litres = capacity_l × level_pct / 100.
+
+    Useful for cards that show "X / Y litres" or fluid-level visualisations
+    that need a volume value alongside percentage. Stays in sync with both
+    capacity edits and live level changes.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "tank_water_volume"
+    _attr_native_unit_of_measurement = UnitOfVolume.LITERS
+    _attr_device_class = SensorDeviceClass.WATER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
+    _attr_icon = "mdi:water"
+
+    def __init__(self, coordinator: SmartGharCoordinator, tank_id: int) -> None:
+        super().__init__(coordinator)
+        self._tank_id = tank_id
+        self._attr_unique_id = (
+            f"smartghar_{coordinator.hub_id}_tank_{tank_id}_water_volume"
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        dev = self.coordinator.device_by_id(self._tank_id) or {}
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{self.coordinator.hub_id}_tank_{self._tank_id}")},
+            via_device=(DOMAIN, self.coordinator.hub_id),
+            manufacturer=MANUFACTURER,
+            model=MODEL_TANK,
+            name=dev.get("name") or f"Tank {self._tank_id}",
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        dev = self.coordinator.device_by_id(self._tank_id)
+        if not dev:
+            return None
+        level_pct = (dev.get("state") or {}).get("level_pct")
+        capacity_l = (dev.get("config") or {}).get("capacity_l")
+        if level_pct is None or capacity_l is None:
+            return None
+        return round(float(capacity_l) * float(level_pct) / 100.0, 1)
+
+    @property
+    def available(self) -> bool:
         return super().available and self.coordinator.device_by_id(self._tank_id) is not None

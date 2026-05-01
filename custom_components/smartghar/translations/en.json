@@ -46,6 +46,9 @@
       },
       "tank_state": {
         "name": "Connection state"
+      },
+      "tank_water_volume": {
+        "name": "Water volume"
       }
     },
     "text": {

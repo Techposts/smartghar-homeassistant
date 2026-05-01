@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" width="400" height="600">
+  <!--
+    SmartGhar — transparent tank silhouette for Lovelace fluid-level cards.
+    Drop this into your Lovelace card config as a background image and the
+    fluid-level animation fills the inner cavity. Cylindrical Indian rooftop
+    overhead-tank shape; outline only, transparent fill.
+
+    Usage with lovelace-fluid-level-background-card:
+      type: custom:fluid-level-background-card
+      entity: sensor.smartghar_<hub>_tank_<id>_level
+      card_image: /local/smartghar/tank-silhouette.svg
+  -->
+  <defs>
+    <linearGradient id="tank-edge" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#94a3b8"/>
+      <stop offset="0.5" stop-color="#cbd5e1"/>
+      <stop offset="1" stop-color="#64748b"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Tank body — rounded cylindrical shape -->
+  <path d="M 60 120
+           C 60 80, 340 80, 340 120
+           L 340 540
+           C 340 580, 60 580, 60 540
+           Z"
+        fill="none" stroke="url(#tank-edge)" stroke-width="6"/>
+
+  <!-- Top inlet pipe -->
+  <rect x="180" y="40" width="40" height="50" fill="url(#tank-edge)" rx="6"/>
+  <ellipse cx="200" cy="100" rx="40" ry="10" fill="url(#tank-edge)"/>
+
+  <!-- Bottom outlet pipe -->
+  <rect x="180" y="565" width="40" height="20" fill="url(#tank-edge)"/>
+
+  <!-- Side stand legs -->
+  <rect x="80" y="560" width="12" height="40" fill="#64748b" opacity="0.7"/>
+  <rect x="308" y="560" width="12" height="40" fill="#64748b" opacity="0.7"/>
+
+  <!-- Subtle fill-level marks on the side -->
+  <g stroke="#94a3b8" stroke-width="1.5" opacity="0.4">
+    <line x1="345" y1="180" x2="360" y2="180"/>
+    <line x1="345" y1="280" x2="360" y2="280"/>
+    <line x1="345" y1="380" x2="360" y2="380"/>
+    <line x1="345" y1="480" x2="360" y2="480"/>
+  </g>
+
+  <!--
+    The interior (the path inside the tank body) is transparent so a
+    fluid-level-background-card can render its animated wave behind the
+    silhouette. The user's HA dashboard sees the wave fill from the bottom
+    up to the percentage value of the bound sensor.
+  -->
+</svg>
