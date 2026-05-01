@@ -4,80 +4,68 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.1-blue.svg)](CHANGELOG.md)
 
-Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring), **PowerSync** (energy meter, coming soon), and other accessories that pair with the SmartGhar Hub.
+Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring), with **PowerSync** (energy) and other accessories on the roadmap.
 
-> **Status: v0.4.0 — beautification + native update UX.** Real-time push via WebSocket against hub firmware **rx-v2.7.0**. State updates arrive every ~3 seconds. Tank water volume (litres) computed locally; HA `update` entity for firmware OTA. See [docs/lovelace-beautification.md](docs/lovelace-beautification.md) for the wavy-water tank look. Full notes: [CHANGELOG.md](CHANGELOG.md).
+> **📚 [Read the Wiki →](https://github.com/Techposts/smartghar-homeassistant/wiki)** — full documentation lives there: installation, entities reference, Energy dashboard setup, multi-hub guides, troubleshooting, FAQ.
+
+---
 
 ## Why this exists
 
-Most consumer IoT integrations require a cloud account, an OAuth dance, and outbound internet access from your Home Assistant instance. SmartGhar is built differently:
+Most consumer IoT integrations require a vendor cloud account, OAuth dance, and outbound internet from your Home Assistant install. SmartGhar is built differently:
 
-- **Local-first**: HA talks to your hub directly over your home network. No cloud account required.
-- **Zero outbound**: HA never reaches `smartghar.org` or any of our servers.
-- **Auto-discovery**: hubs broadcast on mDNS — HA finds them automatically.
-- **Bidirectional**: read tank levels in real time *and* write back (rename tanks, change LED brightness, trigger OTA, etc.)
-- **Multi-hub native**: each hub appears as its own HA device — works whether you have one or ten.
-- **Open protocol**: the [HTTP/WebSocket spec](docs/protocol/v1.md) is published. Anyone can write a third-party client.
+- 🏠 **Local-first.** HA talks to your hub directly over your home network. No cloud account required. Never reaches our cloud.
+- ⚡ **Real-time.** WebSocket push delivers state changes within ~3 seconds, not 30s polling.
+- ↔️ **Bidirectional.** Read state *and* edit configuration (rename tanks, change capacity, control LEDs, trigger OTA, etc.) — edits propagate to the SmartGhar PWA via the existing config-sync pipeline.
+- 🏘️ **Multi-hub native.** Each hub auto-discovers and gets its own HA device.
+- 📖 **Open protocol.** The [HTTP/WebSocket spec](docs/protocol/v1.md) is Apache-2.0. Anyone can write a third-party client.
+- 💧 **HA Energy dashboard.** Cumulative water-consumption sensor with `device_class: water` slots into HA's native water-tracking UI.
 
-The TankSync cloud and PWA continue to operate alongside this integration — they're for away-from-home access. They are *not* a dependency for HA users.
+## Quick install
 
-## What you get today (v0.3.0)
+```
+1. HACS → Integrations → ⋮ → Custom repositories
+2. URL: https://github.com/Techposts/smartghar-homeassistant
+   Category: Integration → Add → Download
+3. Settings → System → Restart Home Assistant
+4. Auto-discovery fires; click "Configure" on the discovered hub
+   (or Settings → Devices & Services → Add Integration → SmartGhar)
+```
 
-For each SmartGhar Hub on your LAN:
+For details + troubleshooting, see the **[Installation page in the wiki →](https://github.com/Techposts/smartghar-homeassistant/wiki/Installation)**.
 
-**Sensors (read-only, per tank)** — `level (%)`, `TX battery voltage`, `LoRa signal`, `connection state`  
-**Sensors (per hub, hidden by default)** — `uptime`, `wifi_rssi`, `firmware_version`  
-**Binary sensor (per hub)** — `firmware update available` (with `update` device class)  
-**Event entities (per tank)** — `fill_complete` (fires on detected refills, automation-ready)  
-**Editable entities** — `tank name` (text), `tank capacity` (litres, number), `LED brightness` (0–255, slider)  
-**Buttons** — `Check for firmware updates` (per hub)  
-**Diagnostics** — Settings → Devices & Services → SmartGhar → Download diagnostics (for bug reports)
+## Status (v0.6.1)
 
-State updates push from the hub to HA in **~3 seconds via WebSocket**. If the WS connection drops, the integration falls back to 30-second polling and reconnects with exponential backoff. Edits propagate to the SmartGhar PWA via the hub's existing config-sync MQTT pipeline.
+- Real-time push via WebSocket against hub firmware **rx-v2.7.0+**
+- Energy dashboard cumulative consumption sensor
+- Bidirectional control: rename, capacity, LED, OTA, identify, reboot
+- Per-tank entities for level, voltage, LoRa signal, connection state, water volume, water consumed
+- HA-native `update` entity for firmware OTA
+- 2 automation blueprints (low-water-alert, refill-confirmation) — install in one click
+- `smartghar.refill_marker` service for manual fill logging
 
-## What's coming next
+For the full entity catalogue, see **[Entities Reference →](https://github.com/Techposts/smartghar-homeassistant/wiki/Entities-Reference)**.
 
-| Version | Adds | Requires |
-|---|---|---|
-| **v0.6.0** | Cross-product (PowerSync, GasSync etc. auto-discover under same integration) | Ecosystem device-kind protocol expansion |
-| **v1.0.0** | HACS default repo submission, Hindi translations, brands-repo icon PR | Stability soak (~6 weeks) |
+## Native Lovelace card — explicit non-goal
 
-### Native Lovelace card — explicit non-goal
-
-A native `smartghar-lovelace` custom card is **not on the roadmap**. The community [`lovelace-fluid-level-background-card`](https://github.com/swingerman/lovelace-fluid-level-background-card) paired with our `tank-silhouette.svg` covers the wavy-water tank look today — see [docs/lovelace-beautification.md](docs/lovelace-beautification.md) for the full setup.
-
-This frees us to focus on protocol + ecosystem work. We'll revisit if and when (a) PowerSync ships and a unified multi-product visual language becomes necessary, or (b) the community-card setup proves too friction-heavy for typical users.
-
-## Installation (planned)
-
-1. Open HACS → Integrations → ⋮ → Custom repositories
-2. Add `https://github.com/Techposts/smartghar-homeassistant` (category: Integration)
-3. Install "SmartGhar"
-4. Restart Home Assistant
-5. Settings → Devices & Services → Add Integration → SmartGhar
-6. Either accept auto-discovery prompt OR enter hub IP manually
-
-> **Submission to HACS default repo is planned after v0.1.0 stabilises** — at which point the manual "custom repository" step goes away.
-
-## Multi-hub setups
-
-Have a Rooftop Hub and a Garden Hub? Both auto-discover independently. Each appears as its own device card under SmartGhar. Entities are namespaced by hub_id so there's no collision.
-
-See [docs/multi-hub.md](docs/multi-hub.md) for Lovelace dashboard examples.
+A native custom Lovelace card is **not on the roadmap**. The community [`lovelace-fluid-level-background-card`](https://github.com/swingerman/lovelace-fluid-level-background-card) paired with our [`assets/tank-silhouette.svg`](assets/tank-silhouette.svg) covers the wavy-water tank look — see [Lovelace Beautification →](https://github.com/Techposts/smartghar-homeassistant/wiki/Lovelace-Beautification) in the wiki for the setup recipe.
 
 ## Project structure
 
 ```
 smartghar-homeassistant/
 ├── custom_components/smartghar/   # The HA integration (Python)
+├── blueprints/automation/         # Pre-built HA automations
 ├── docs/
-│   ├── protocol/v1.md             # The hub HTTP/WS API spec
-│   ├── multi-hub.md               # Multi-hub UX guide
-│   └── examples/                  # Automation + Lovelace examples
+│   ├── GUIDE.md                   # Mirror of wiki for in-repo readers
+│   ├── protocol/v1.md             # Apache-2.0 HTTP/WS API spec
+│   ├── installation.md, multi-hub.md, lovelace-beautification.md, examples/
 └── .github/workflows/             # HACS + hassfest validation
 ```
+
+The wiki has the richer browsing UX; `docs/` mirrors most of it for in-repo readers.
 
 ## Related repos
 
@@ -86,11 +74,13 @@ smartghar-homeassistant/
 
 ## Contributing
 
-Issues, ideas, and pull requests welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+See **[Contributing →](https://github.com/Techposts/smartghar-homeassistant/wiki/Contributing)** in the wiki, or [CONTRIBUTING.md](CONTRIBUTING.md).
 
-The protocol spec is intentionally public so that anyone can build a third-party client. We commit to versioned, documented breaking changes and a deprecation window before any incompatible spec change.
+The protocol spec is intentionally public so anyone can build third-party clients. Versioned, documented breaking changes only.
 
 ## License
 
-Code: [MIT](LICENSE).  
-Protocol spec (`docs/protocol/`): Apache-2.0.
+| Layer | License |
+|---|---|
+| Code (`custom_components/smartghar/*`, blueprints, services) | [MIT](LICENSE) |
+| Protocol spec (`docs/protocol/`) | Apache-2.0 |
