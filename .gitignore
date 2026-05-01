@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build / dist
+build/
+dist/
+*.egg
+
+# HA dev environment (if used for testing)
+config/
+test_config/
+.HA_VERSION
+.storage/
+home-assistant.log
+home-assistant_v2.db*
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml

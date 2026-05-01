@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add SmartGhar Hub",
+        "description": "Enter the IP address of your SmartGhar Hub on the local network.",
+        "data": {
+          "host": "Hub IP address",
+          "local_token": "Local API token (only if you enabled it on the hub)"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "SmartGhar Hub discovered",
+        "description": "Found '{name}' at {host}. Add it to Home Assistant?"
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to reach the hub. Check that it's on the same network as Home Assistant.",
+      "invalid_token": "The local token is invalid.",
+      "already_configured": "This hub is already configured."
+    },
+    "abort": {
+      "already_configured": "This hub is already configured."
+    }
+  }
+}
