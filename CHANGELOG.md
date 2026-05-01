@@ -2,6 +2,30 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## v0.5.0 — Identify buttons, reboot, diagnostic tuning, copy fixes
+
+Adds the entities power-users actually want: identify buttons (find a hub or tank physically), a reboot button, and diagnostic-category power-tuning numbers. Plus shorter, friendlier zeroconf form copy.
+
+### Added
+- **`button` per hub**: Identify (blinks the hub's status LED for ~1.5s) — `device_class: identify`
+- **`button` per hub**: Reboot — `device_class: restart`, diagnostic category. Hub unreachable for ~30s.
+- **`button` per tank**: Identify (blinks the tank's specific LED) — useful for kits with multiple tanks. Requires hub strip ≥8 LEDs.
+- **`number` per tank** (diagnostic): TX sleep interval (60–3600 s) — battery vs. freshness tradeoff
+- **`number` per tank** (diagnostic): TX samples per wake (1–10) — readings averaged per cycle
+- **`number` per tank** (diagnostic): LoRa TX power (1–22 dBm) — range vs. battery
+- API client methods: `identify_hub()`, `identify_device(id)`, `reboot_hub()`
+
+### Changed
+- **Zeroconf confirmation form**: dropped MAC/DHCP technical narrative. Just shows "Add this hub to Home Assistant?" — clean, friendly UX.
+- **Manual entry form**: tightened copy. Shorter, less wordy.
+
+### Requires
+- Hub firmware **rx-v2.7.0 Phase 1.4** (adds `POST /api/v1/hub/identify`, `POST /api/v1/devices/<id>/identify`, `POST /api/v1/hub/reboot`).
+- Older firmware: identify/reboot buttons silently no-op or fail; the rest of the integration is unaffected.
+
+### Design decision
+- **No native `smartghar-lovelace` custom card planned.** The community [`lovelace-fluid-level-background-card`](https://github.com/swingerman/lovelace-fluid-level-background-card) paired with our `tank-silhouette.svg` covers the visual need today. Building our own custom card is a v1.0+ revisit, gated on (1) PowerSync shipping so we can design a multi-product visual language, or (2) credible user demand for a unified branded card. See `docs/lovelace-beautification.md`.
+
 ## v0.4.0 — `update` entity, water volume, Lovelace beautification
 
 Beautification + UX polish release. Adds HA-native firmware update UX, the missing computed sensors that fluid-level cards need, and a comprehensive guide to making tanks *look* great in dashboards.

@@ -3,15 +3,15 @@
     "step": {
       "user": {
         "title": "Add SmartGhar Hub",
-        "description": "Enter the IP address of your SmartGhar Hub on the local network. Tip: open the hub's web UI on your phone — the IP is shown on the System tab.",
+        "description": "Enter your hub's IP address. Find it in the hub's web UI or your router's device list.",
         "data": {
           "host": "Hub IP address",
-          "local_token": "Local API token (only if you enabled it on the hub)"
+          "local_token": "Local API token (optional)"
         }
       },
       "zeroconf_confirm": {
         "title": "SmartGhar Hub discovered",
-        "description": "A SmartGhar Hub is reachable at `{host}` on your network. The hub is identified by its MAC address, so this connection survives DHCP lease changes (the hostname stays stable even when the IP rotates).\n\nAdd it to Home Assistant?"
+        "description": "Add this hub to Home Assistant?"
       }
     },
     "error": {
@@ -62,11 +62,26 @@
       },
       "led_brightness": {
         "name": "LED brightness"
+      },
+      "tank_sleep_interval": {
+        "name": "TX sleep interval"
+      },
+      "tank_samples": {
+        "name": "TX samples per wake"
+      },
+      "tank_lora_power": {
+        "name": "LoRa TX power"
       }
     },
     "button": {
       "ota_check": {
         "name": "Check for firmware updates"
+      },
+      "identify": {
+        "name": "Identify"
+      },
+      "reboot": {
+        "name": "Reboot hub"
       }
     },
     "binary_sensor": {

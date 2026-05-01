@@ -4,7 +4,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](CHANGELOG.md)
 
 Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring), **PowerSync** (energy meter, coming soon), and other accessories that pair with the SmartGhar Hub.
 
@@ -41,9 +41,14 @@ State updates push from the hub to HA in **~3 seconds via WebSocket**. If the WS
 
 | Version | Adds | Requires |
 |---|---|---|
-| **v0.4.0** | Per-event WS frames (`device_state` deltas, `fill_event`, `low_threshold`), `light` entity for hub LED, identify buttons | Hub firmware push hooks for granular events |
-| **v0.5.0** | Cross-product (PowerSync, GasSync etc. auto-discover under same integration) | Ecosystem device-kind protocol expansion |
-| **v1.0.0** | HACS default repo submission, custom Lovelace tank capsule card, Hindi translations | Stability soak (~6 weeks) + brands-repo PR |
+| **v0.6.0** | Cross-product (PowerSync, GasSync etc. auto-discover under same integration) | Ecosystem device-kind protocol expansion |
+| **v1.0.0** | HACS default repo submission, Hindi translations, brands-repo icon PR | Stability soak (~6 weeks) |
+
+### Native Lovelace card — explicit non-goal
+
+A native `smartghar-lovelace` custom card is **not on the roadmap**. The community [`lovelace-fluid-level-background-card`](https://github.com/swingerman/lovelace-fluid-level-background-card) paired with our `tank-silhouette.svg` covers the wavy-water tank look today — see [docs/lovelace-beautification.md](docs/lovelace-beautification.md) for the full setup.
+
+This frees us to focus on protocol + ecosystem work. We'll revisit if and when (a) PowerSync ships and a unified multi-product visual language becomes necessary, or (b) the community-card setup proves too friction-heavy for typical users.
 
 ## Installation (planned)
 

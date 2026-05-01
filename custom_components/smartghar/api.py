@@ -153,6 +153,18 @@ class SmartGharHubClient:
         will be unreachable for ~60s during the flash."""
         await self._post("/api/v1/hub/ota/install")
 
+    async def identify_hub(self) -> None:
+        """Blink the hub's status LED so the user can find it physically."""
+        await self._post("/api/v1/hub/identify")
+
+    async def identify_device(self, device_id: int) -> None:
+        """Blink the LED associated with a specific tank/device."""
+        await self._post(f"/api/v1/devices/{device_id}/identify")
+
+    async def reboot_hub(self) -> None:
+        """Reboot the hub. It will be unreachable for ~30 seconds."""
+        await self._post("/api/v1/hub/reboot")
+
     def ws_url(self) -> str:
         """Build the ws:// URL for /api/v1/stream."""
         return f"ws://{self.host}:{self._base.port or DEFAULT_PORT}/api/v1/stream"
