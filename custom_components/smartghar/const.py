@@ -1,16 +1,25 @@
 """Constants for the SmartGhar integration."""
 from __future__ import annotations
 
+from datetime import timedelta
+
 DOMAIN = "smartghar"
 MANUFACTURER = "SmartGhar"
 
+# Spec version this integration speaks. Hub firmware advertises its
+# schema_version on /api/v1/info; if it ever bumps to 2.x, this integration
+# would need updating.
 PROTOCOL_VERSION = "1.0"
 ZEROCONF_TYPE = "_smartghar._tcp.local."
 
 DEFAULT_PORT = 80
 DEFAULT_TIMEOUT_S = 5.0
 
-# Device kind taxonomy — mirrors the LoRa device_kind byte in hub firmware.
+# Polling intervals — water levels change slowly so 30s is plenty. Real-time
+# push lands in v0.2.0 once firmware Phase 1.3 ships the WebSocket endpoint.
+SCAN_INTERVAL = timedelta(seconds=30)
+
+# Device-kind taxonomy (mirrors LoRa device_kind byte in hub firmware).
 DEVICE_KIND_TANK = "tank"
 DEVICE_KIND_POWER = "power"
 DEVICE_KIND_PUMP_RELAY = "pump_relay"
@@ -22,3 +31,7 @@ DEVICE_KIND_AIR = "air"
 # Config keys
 CONF_HUB_ID = "hub_id"
 CONF_LOCAL_TOKEN = "local_token"
+
+# Model strings for HA device registry — visible in Settings → Devices.
+MODEL_HUB = "TankSync Hub"
+MODEL_TANK = "TankSync TX (Tank)"
