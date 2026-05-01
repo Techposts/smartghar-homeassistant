@@ -49,6 +49,9 @@
       },
       "tank_water_volume": {
         "name": "Water volume"
+      },
+      "tank_consumption": {
+        "name": "Water consumed"
       }
     },
     "text": {

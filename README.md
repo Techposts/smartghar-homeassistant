@@ -4,7 +4,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](CHANGELOG.md)
 
 Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring), **PowerSync** (energy meter, coming soon), and other accessories that pair with the SmartGhar Hub.
 

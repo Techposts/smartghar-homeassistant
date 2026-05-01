@@ -13,6 +13,7 @@ import logging
 from typing import Any
 
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
@@ -133,6 +134,8 @@ async def async_setup_entry(
             entities.append(SmartGharTankSensor(coordinator, desc, dev["id"]))
         # Computed tank sensors — derived from level + capacity.
         entities.append(SmartGharTankWaterVolume(coordinator, dev["id"]))
+        # Cumulative consumption sensor — drives HA's Energy dashboard.
+        entities.append(SmartGharTankConsumption(coordinator, dev["id"]))
 
     async_add_entities(entities)
 
@@ -219,6 +222,112 @@ class SmartGharTankSensor(_SmartGharBase):
     def available(self) -> bool:
         # Mark unavailable if the tank dropped off the registry between polls
         # (e.g., user removed it via PWA).
+        return super().available and self.coordinator.device_by_id(self._tank_id) is not None
+
+
+class SmartGharTankConsumption(CoordinatorEntity[SmartGharCoordinator], RestoreSensor):
+    """Cumulative water consumption (litres) — drives HA's Energy dashboard.
+
+    Algorithm: on each coordinator tick, compare current level to last seen.
+    If level dropped beyond a noise floor (0.5%), add the drained volume to
+    the running total. Fills (level rising) reset the baseline without
+    incrementing — we count consumption, not just any level change.
+
+    `device_class: water` + `state_class: total_increasing` makes HA
+    auto-pick this up as a water source under Settings → Energy.
+
+    Persists across HA restarts via RestoreSensor so the running total
+    survives HA reboots without losing history. Capacity changes are
+    forward-looking — past consumption stays as it was when recorded.
+    """
+
+    NOISE_FLOOR_PCT = 0.5
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "tank_consumption"
+    _attr_native_unit_of_measurement = UnitOfVolume.LITERS
+    _attr_device_class = SensorDeviceClass.WATER
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_suggested_display_precision = 0
+    _attr_icon = "mdi:water-pump"
+
+    def __init__(self, coordinator: SmartGharCoordinator, tank_id: int) -> None:
+        super().__init__(coordinator)
+        self._tank_id = tank_id
+        self._attr_unique_id = (
+            f"smartghar_{coordinator.hub_id}_tank_{tank_id}_consumption"
+        )
+        self._total_l: float = 0.0
+        self._baseline_pct: float | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        dev = self.coordinator.device_by_id(self._tank_id) or {}
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{self.coordinator.hub_id}_tank_{self._tank_id}")},
+            via_device=(DOMAIN, self.coordinator.hub_id),
+            manufacturer=MANUFACTURER,
+            model=MODEL_TANK,
+            name=dev.get("name") or f"Tank {self._tank_id}",
+        )
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # Restore running total from before HA restart.
+        last = await self.async_get_last_sensor_data()
+        if last is not None and last.native_value is not None:
+            try:
+                self._total_l = float(last.native_value)
+            except (TypeError, ValueError):
+                self._total_l = 0.0
+        # Seed the baseline from the current device state so the first
+        # post-restart tick doesn't fire a spurious "fill" or count noise.
+        dev = self.coordinator.device_by_id(self._tank_id)
+        if dev:
+            level = (dev.get("state") or {}).get("level_pct")
+            if level is not None:
+                self._baseline_pct = float(level)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        dev = self.coordinator.device_by_id(self._tank_id)
+        if not dev:
+            super()._handle_coordinator_update()
+            return
+
+        level = (dev.get("state") or {}).get("level_pct")
+        capacity_l = (dev.get("config") or {}).get("capacity_l")
+        if level is None or capacity_l is None:
+            super()._handle_coordinator_update()
+            return
+
+        if self._baseline_pct is None:
+            # First observation — seed baseline, don't count anything yet.
+            self._baseline_pct = float(level)
+            super()._handle_coordinator_update()
+            return
+
+        delta_pct = float(self._baseline_pct) - float(level)
+
+        if delta_pct >= self.NOISE_FLOOR_PCT:
+            # Consumption event — accumulate and reset baseline.
+            consumed_l = float(capacity_l) * delta_pct / 100.0
+            self._total_l += consumed_l
+            self._baseline_pct = float(level)
+        elif float(level) > float(self._baseline_pct):
+            # Fill event — reset baseline without incrementing.
+            self._baseline_pct = float(level)
+        # else: sub-noise-floor change. Don't update baseline so cumulative
+        # small drains add up correctly across multiple ticks.
+
+        super()._handle_coordinator_update()
+
+    @property
+    def native_value(self) -> float:
+        return round(self._total_l, 1)
+
+    @property
+    def available(self) -> bool:
         return super().available and self.coordinator.device_by_id(self._tank_id) is not None
 
 

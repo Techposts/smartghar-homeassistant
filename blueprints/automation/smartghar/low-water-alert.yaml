@@ -1,0 +1,70 @@
+blueprint:
+  name: SmartGhar — Low water alert
+  description: >
+    Send a notification when a tank's level drops below a threshold. Built
+    for SmartGhar TankSync but works with any percentage sensor (0–100).
+    Optional cooldown prevents spam if the level oscillates around the
+    threshold.
+
+    To install: in HA, go to Settings → Automations & scenes → Blueprints,
+    click "Import Blueprint", paste the URL of this file from the SmartGhar
+    GitHub repo, and create an automation from it.
+  domain: automation
+  source_url: https://github.com/Techposts/smartghar-homeassistant/blob/main/blueprints/automation/smartghar/low-water-alert.yaml
+  input:
+    tank_sensor:
+      name: Tank level sensor
+      description: Choose the tank to watch.
+      selector:
+        entity:
+          filter:
+            - integration: smartghar
+              domain: sensor
+    threshold_pct:
+      name: Alert threshold (%)
+      description: Fire the notification when level drops below this.
+      default: 20
+      selector:
+        number:
+          min: 5
+          max: 95
+          step: 5
+          unit_of_measurement: '%'
+    notify_service:
+      name: Notification service
+      description: >
+        Which HA notification service to call (e.g., `notify.mobile_app_<phone>`
+        for the HA mobile app, or `notify.persistent_notification` to use HA's
+        own notification panel).
+      default: notify.persistent_notification
+      selector:
+        text:
+    cooldown_minutes:
+      name: Cooldown (minutes)
+      description: Don't re-notify within this window after firing.
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 1440
+          step: 15
+          unit_of_measurement: min
+
+mode: single
+max_exceeded: silent
+
+trigger:
+  - platform: numeric_state
+    entity_id: !input tank_sensor
+    below: !input threshold_pct
+    for: "00:01:00"   # debounce — sensor must stay below for 1 minute
+
+action:
+  - service: !input notify_service
+    data:
+      title: 💧 Low water alert
+      message: >
+        {{ state_attr(trigger.entity_id, 'friendly_name') or trigger.entity_id }}
+        is at {{ states(trigger.entity_id) }}%.
+  - delay:
+      minutes: !input cooldown_minutes

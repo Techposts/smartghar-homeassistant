@@ -2,6 +2,23 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## v0.6.0 — Energy dashboard, refill_marker service, automation blueprints
+
+Three additions, all globally relevant: cumulative water consumption sensor that slots into HA's native Energy dashboard, a `refill_marker` service for manual tanker logging, and two automation blueprints for one-click setup of the most-asked alerts.
+
+### Added
+- **`sensor.tank_<n>_water_consumed`** per tank — cumulative litres consumed, with `device_class: water` + `state_class: total_increasing`. Slots into HA's Energy dashboard (Settings → Energy → Water consumption → add SmartGhar tank). Persists across HA restarts via `RestoreSensor`.
+- **`smartghar.refill_marker` service** — manually log a refill event (volume, source, cost, free-form note). Fires a `smartghar_refill_marker` HA event for automations to act on. Useful when the integration's auto-detection misses fast fills, or when you want to record metadata like vendor/cost.
+- **Blueprint: low-water-alert** — one-click "notify when tank below X%" automation, with cooldown to prevent spam.
+- **Blueprint: refill-confirmation** — one-click notification when a tank's `fill_complete` event fires.
+
+### Why this matters globally
+- **Energy dashboard** — for off-grid (well + storage tank), RV/boat, agricultural, drought-sensitive areas, and sustainability-conscious users. Most water-tank integrations can't do this because they lack continuous metering data; the SmartGhar protocol's `level_pct` + `capacity_l` lets us derive consumption.
+- **Blueprints** — newcomers who don't yet write YAML automations get the most-common alerts in one click.
+
+### Algorithm note (consumption sensor)
+On each coordinator tick, compares current level to last seen. If level dropped beyond a 0.5% noise floor, accumulates the drained volume into the running total. Fills (level rising) reset the baseline without incrementing. Tiny sub-floor drains accumulate across ticks until they cross the floor, so real consumption isn't lost.
+
 ## v0.5.0 — Identify buttons, reboot, diagnostic tuning, copy fixes
 
 Adds the entities power-users actually want: identify buttons (find a hub or tank physically), a reboot button, and diagnostic-category power-tuning numbers. Plus shorter, friendlier zeroconf form copy.

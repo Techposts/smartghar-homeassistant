@@ -1,0 +1,61 @@
+refill_marker:
+  name: Log a tank refill
+  description: >
+    Manually mark that a tank was refilled — e.g., when a tanker delivers water
+    and you want a record. Fires an `smartghar_refill_marker` event with
+    metadata you can listen for in automations (e.g., to log to a notebook,
+    update a cost spreadsheet, send a confirmation push). The integration's
+    auto-detected `fill_complete` events handle obvious refills automatically;
+    use this service for situations where the auto-detection missed (very
+    fast fills under one coordinator tick) or where you want to record extra
+    metadata like cost or source.
+  fields:
+    tank:
+      name: Tank
+      description: The tank that was refilled.
+      required: false
+      selector:
+        entity:
+          integration: smartghar
+          device_class: water
+    volume_l:
+      name: Volume (litres)
+      description: How much water was added.
+      example: 5000
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 100000
+          step: 1
+          unit_of_measurement: L
+    source:
+      name: Source
+      description: Where the water came from.
+      example: tanker
+      required: false
+      selector:
+        select:
+          options:
+            - tanker
+            - municipal
+            - well
+            - rainwater
+            - other
+    cost:
+      name: Cost
+      description: Optional amount paid for this fill (in your local currency).
+      example: 450
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100000
+          step: 1
+    note:
+      name: Note
+      description: Free-form note (vendor name, receipt number, etc.).
+      example: Sharma Tankers, receipt 4521
+      required: false
+      selector:
+        text:

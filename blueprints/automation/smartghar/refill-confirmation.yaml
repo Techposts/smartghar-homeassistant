@@ -1,0 +1,54 @@
+blueprint:
+  name: SmartGhar — Refill confirmation
+  description: >
+    Notify when a tank's `fill_complete` event entity fires — i.e., the
+    integration auto-detected a refill. The notification includes the volume
+    added (litres) and the resulting level percentage.
+
+    Pairs with the integration's per-tank `event` entity (created automatically
+    by SmartGhar v0.3.0+).
+
+    To install: in HA, Settings → Automations & scenes → Blueprints,
+    Import Blueprint, paste this file's URL.
+  domain: automation
+  source_url: https://github.com/Techposts/smartghar-homeassistant/blob/main/blueprints/automation/smartghar/refill-confirmation.yaml
+  input:
+    fill_event:
+      name: Fill event entity
+      description: >
+        Choose the tank's "Fill event" entity (`event.smartghar_..._fill_event`).
+      selector:
+        entity:
+          filter:
+            - integration: smartghar
+              domain: event
+    notify_service:
+      name: Notification service
+      description: >
+        Which HA notification service to call (e.g., `notify.mobile_app_<phone>`).
+      default: notify.persistent_notification
+      selector:
+        text:
+
+mode: parallel
+max: 5
+
+trigger:
+  - platform: state
+    entity_id: !input fill_event
+    not_to:
+      - "unknown"
+      - "unavailable"
+
+action:
+  - service: !input notify_service
+    data:
+      title: ✅ Tank refilled
+      message: >
+        {{ state_attr(trigger.entity_id, 'tank_name') or 'A tank' }}
+        was refilled.
+        {% if trigger.to_state.attributes.delta_pct is defined %}
+        Level rose {{ trigger.to_state.attributes.delta_pct }}%
+        ({{ trigger.to_state.attributes.volume_l }} L)
+        to {{ trigger.to_state.attributes.to_pct }}%.
+        {% endif %}

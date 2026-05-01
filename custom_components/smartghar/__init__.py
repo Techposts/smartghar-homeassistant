@@ -3,24 +3,32 @@
 Local-first integration that talks to SmartGhar Hubs (TankSync, PowerSync, ...)
 over the home LAN via the documented HTTP/WebSocket protocol. Never reaches
 out to any cloud service.
-
-v0.1.0 ships polling-based read-only sensors. WebSocket real-time push +
-bidirectional control land in v0.2.0+ once firmware Phase 1.2/1.3 are tagged.
 """
 from __future__ import annotations
 
 import logging
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
 
 from .api import SmartGharHubClient
 from .const import CONF_LOCAL_TOKEN, DOMAIN
 from .coordinator import SmartGharCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+REFILL_MARKER_SCHEMA = vol.Schema({
+    vol.Optional("tank"): cv.entity_id,
+    vol.Optional("volume_l"): vol.Coerce(float),
+    vol.Optional("source"): vol.In(["tanker", "municipal", "well", "rainwater", "other"]),
+    vol.Optional("cost"): vol.Coerce(float),
+    vol.Optional("note"): cv.string,
+})
 
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
@@ -33,9 +41,40 @@ PLATFORMS: list[Platform] = [
 ]
 
 
+async def _async_register_services(hass: HomeAssistant) -> None:
+    """Register integration-wide services. Idempotent."""
+    if hass.services.has_service(DOMAIN, "refill_marker"):
+        return
+
+    async def _refill_marker(call: ServiceCall) -> None:
+        """Fire a smartghar_refill_marker event with the user's metadata.
+
+        Doesn't update consumption totals (that's auto-tracked from level
+        deltas already). Pure logging surface — automations subscribe to
+        the event for "refill happened with these properties" workflows.
+        """
+        event_data = {
+            "tank": call.data.get("tank"),
+            "volume_l": call.data.get("volume_l"),
+            "source": call.data.get("source", "manual"),
+            "cost": call.data.get("cost"),
+            "note": call.data.get("note"),
+            "logged_at": dt_util.utcnow().isoformat(),
+        }
+        # Drop None fields so the event payload is clean.
+        event_data = {k: v for k, v in event_data.items() if v is not None}
+        hass.bus.async_fire(f"{DOMAIN}_refill_marker", event_data)
+        _LOGGER.info("Refill marker logged: %s", event_data)
+
+    hass.services.async_register(
+        DOMAIN, "refill_marker", _refill_marker, schema=REFILL_MARKER_SCHEMA
+    )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up SmartGhar from a config entry."""
     hass.data.setdefault(DOMAIN, {})
+    await _async_register_services(hass)
 
     session = async_get_clientsession(hass)
     client = SmartGharHubClient(
