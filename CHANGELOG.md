@@ -2,6 +2,24 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## v0.6.1 — Hub address: prefer IP over `.local` hostname
+
+Critical fix for users on HAOS-in-Proxmox, Docker bridge networking, and other setups where `.local` hostname resolution is unreliable.
+
+### Fixed
+- **Connection failures with `MDNS lookup failed` / `Timeout while contacting DNS servers`**: zeroconf-discovered hubs now have their **IP address** stored as the host, not the `.local` hostname. aiohttp's per-request OS resolver was timing out for `.local` names in environments like HAOS-on-Proxmox; storing the IP avoids the resolution path entirely.
+
+### Why we changed the v0.3.1 approach
+v0.3.1 stored the hostname for "DHCP resilience" — the idea being that if the IP rotates, the OS resolver follows the hostname. In practice, the OS resolver path for `.local` is brittle on common HA install topologies. **DHCP resilience is now achieved a different way**: zeroconf re-discovery fires automatically when the hub re-broadcasts (boot, WiFi reconnect, or periodic mDNS announce — typically within 1 hour). The existing `_abort_if_unique_id_configured(updates={CONF_HOST: ...})` line auto-updates the stored IP without any user action.
+
+### For existing installs that hit this bug
+If your hub is unreachable with the `MDNS lookup failed` error:
+1. Delete the SmartGhar integration from `Settings → Devices & Services`
+2. Restart Home Assistant
+3. Re-add via auto-discovery, OR manually with the hub's IP address (e.g. `192.168.0.30`)
+
+The new install will store the IP. DHCP changes update transparently going forward.
+
 ## v0.6.0 — Energy dashboard, refill_marker service, automation blueprints
 
 Three additions, all globally relevant: cumulative water consumption sensor that slots into HA's native Energy dashboard, a `refill_marker` service for manual tanker logging, and two automation blueprints for one-click setup of the most-asked alerts.

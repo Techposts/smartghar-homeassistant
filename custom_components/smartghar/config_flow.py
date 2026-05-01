@@ -106,16 +106,22 @@ class SmartGharConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not hub_id:
             return self.async_abort(reason="missing_hub_id")
 
-        # Prefer the mDNS hostname (e.g. "tanksync-f6dc.local") over the resolved
-        # IP. The hostname is MAC-derived and survives DHCP lease changes; the
-        # IP is whatever the hub got this lease cycle. Storing the hostname means
-        # HA re-resolves it on every request, so a rotated IP is handled
-        # transparently. Trailing dot is stripped because aiohttp doesn't like it.
-        hostname = (discovery_info.hostname or "").rstrip(".")
+        # Prefer the resolved IP over the mDNS hostname. Reasons:
+        #  - aiohttp's hostname resolution uses the OS resolver, which is
+        #    unreliable for `.local` names in HAOS-on-Proxmox, Docker bridge
+        #    networking, and various corporate VLAN setups. Storing the IP
+        #    avoids a per-request mDNS lookup that frequently times out.
+        #  - DHCP resilience is preserved a different way: zeroconf re-discovery
+        #    fires automatically when the hub re-broadcasts (boot, WiFi
+        #    reconnect, or periodic mDNS announce). The handler below
+        #    auto-updates the stored host via `_abort_if_unique_id_configured(
+        #    updates={CONF_HOST: ...})` — so a rotated IP is handled
+        #    transparently within ~1 hour without any user action.
         ip_str = discovery_info.host or (
             str(discovery_info.ip_address) if discovery_info.ip_address else ""
         )
-        self._discovered_host = hostname or ip_str
+        hostname = (discovery_info.hostname or "").rstrip(".")
+        self._discovered_host = ip_str or hostname
 
         self._discovered_hub_id = hub_id
         # Hub friendly name not in TXT yet; fall back to mDNS instance.
