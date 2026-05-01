@@ -24,9 +24,11 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
+    Platform.BINARY_SENSOR,
     Platform.NUMBER,
     Platform.TEXT,
     Platform.BUTTON,
+    Platform.EVENT,
 ]
 
 
@@ -48,11 +50,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Start the WebSocket push channel after platforms are wired up so
+    # entities exist by the time the first snapshot arrives.
+    coordinator.start_ws()
+
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    coordinator: SmartGharCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if coordinator is not None:
+        await coordinator.stop_ws()
+
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)

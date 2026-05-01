@@ -65,6 +65,23 @@
       "ota_check": {
         "name": "Check for firmware updates"
       }
+    },
+    "binary_sensor": {
+      "ota_available": {
+        "name": "Firmware update available"
+      }
+    },
+    "event": {
+      "fill_complete": {
+        "name": "Fill event",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "fill_complete": "Fill complete"
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    SmartGhar · brand-consistent integration icon
+    Adapted from cloud/marketing/public/favicon.svg.
+    Skyline silhouette = "smart home", water wave = TankSync / PowerSync etc.,
+    green dot = device online status.
+  -->
+  <defs>
+    <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#7dd3fc" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#0284c7" stop-opacity="0.45"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded-square card on dark navy -->
+  <rect width="256" height="256" rx="56" fill="#0a0e1a"/>
+
+  <!-- Skyline silhouette (proportions mirror the 64×64 favicon, scaled 4×) -->
+  <path d="M64 160 L64 96 L96 128 L128 88 L160 128 L192 88 L192 160 Z"
+        fill="url(#sky)" opacity="0.95"/>
+
+  <!-- Online-status dot, top-right of the skyline (matches marketing brand) -->
+  <circle cx="192" cy="72" r="12" fill="#22c55e"/>
+
+  <!-- Two water waves under the skyline — TankSync + ecosystem cue -->
+  <path d="M40 200 Q 80 188, 128 200 T 216 200"
+        stroke="url(#water)" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M40 222 Q 80 210, 128 222 T 216 222"
+        stroke="url(#water)" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.6"/>
+</svg>

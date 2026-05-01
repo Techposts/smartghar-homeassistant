@@ -146,3 +146,22 @@ class SmartGharHubClient:
         """Trigger an OTA manifest fetch. Hub responds immediately; check
         runs in background."""
         await self._post("/api/v1/hub/ota/check")
+
+    def ws_url(self) -> str:
+        """Build the ws:// URL for /api/v1/stream."""
+        return f"ws://{self.host}:{self._base.port or DEFAULT_PORT}/api/v1/stream"
+
+    async def connect_ws(self) -> aiohttp.ClientWebSocketResponse:
+        """Open the /api/v1/stream WebSocket. Caller is responsible for closing.
+
+        Use as an async context: `async with client.connect_ws() as ws: ...`
+        """
+        headers = {}
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
+        return await self._session.ws_connect(
+            self.ws_url(),
+            headers=headers,
+            heartbeat=20.0,   # ping every 20s; aiohttp closes if no pong
+            timeout=10.0,
+        )

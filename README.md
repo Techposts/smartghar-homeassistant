@@ -1,11 +1,14 @@
+<p align="center"><img src="assets/icon.svg" alt="SmartGhar" width="128" height="128"/></p>
+
 # SmartGhar — Home Assistant Integration
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](CHANGELOG.md)
 
 Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring), **PowerSync** (energy meter, coming soon), and other accessories that pair with the SmartGhar Hub.
 
-> **Status: v0.2.0 — bidirectional control via polling.** Functional end-to-end against hub firmware **rx-v2.7.0** (Phase 1.1 + 1.2). WebSocket-based real-time push is on track for v0.3.0 + firmware Phase 1.3. See [CHANGELOG.md](CHANGELOG.md).
+> **Status: v0.3.0 — real-time push via WebSocket.** Functional end-to-end against hub firmware **rx-v2.7.0** (Phase 1.1 + 1.2 + 1.3). State updates arrive every ~3 seconds with a 30-second polling fallback. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Why this exists
 
@@ -20,24 +23,27 @@ Most consumer IoT integrations require a cloud account, an OAuth dance, and outb
 
 The TankSync cloud and PWA continue to operate alongside this integration — they're for away-from-home access. They are *not* a dependency for HA users.
 
-## What you get today (v0.2.0)
+## What you get today (v0.3.0)
 
 For each SmartGhar Hub on your LAN:
 
 **Sensors (read-only, per tank)** — `level (%)`, `TX battery voltage`, `LoRa signal`, `connection state`  
 **Sensors (per hub, hidden by default)** — `uptime`, `wifi_rssi`, `firmware_version`  
-**Editable entities** — `tank name` (text), `tank capacity` (number, litres), `LED brightness` (number, 0–255)  
-**Buttons** — `Check for firmware updates` (per hub)
+**Binary sensor (per hub)** — `firmware update available` (with `update` device class)  
+**Event entities (per tank)** — `fill_complete` (fires on detected refills, automation-ready)  
+**Editable entities** — `tank name` (text), `tank capacity` (litres, number), `LED brightness` (0–255, slider)  
+**Buttons** — `Check for firmware updates` (per hub)  
+**Diagnostics** — Settings → Devices & Services → SmartGhar → Download diagnostics (for bug reports)
 
-State updates every 30 seconds via polling. Edits propagate to the SmartGhar PWA via the hub's existing config-sync MQTT pipeline, so a rename in HA shows up in the PWA seconds later.
+State updates push from the hub to HA in **~3 seconds via WebSocket**. If the WS connection drops, the integration falls back to 30-second polling and reconnects with exponential backoff. Edits propagate to the SmartGhar PWA via the hub's existing config-sync MQTT pipeline.
 
 ## What's coming next
 
 | Version | Adds | Requires |
 |---|---|---|
-| **v0.3.0** | Real-time push, `light` entity for full LED control, `event` entities for `fill_complete` / `leak_detected` | Hub firmware Phase 1.3 (WebSocket `/api/v1/stream`) |
-| **v0.4.0** | Cross-product (PowerSync, GasSync etc. auto-discover) | Ecosystem device-kind protocol expansion |
-| **v0.5.0+** | Custom Lovelace tank capsule card, Hindi translations, more languages | — |
+| **v0.4.0** | Per-event WS frames (`device_state` deltas, `fill_event`, `low_threshold`), `light` entity for hub LED, identify buttons | Hub firmware push hooks for granular events |
+| **v0.5.0** | Cross-product (PowerSync, GasSync etc. auto-discover under same integration) | Ecosystem device-kind protocol expansion |
+| **v1.0.0** | HACS default repo submission, custom Lovelace tank capsule card, Hindi translations | Stability soak (~6 weeks) + brands-repo PR |
 
 ## Installation (planned)
 

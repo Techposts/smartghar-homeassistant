@@ -2,7 +2,26 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
-## v0.2.0 — Bidirectional control (unreleased)
+## v0.3.0 — Real-time push, event entities, OTA-available indicator
+
+**`iot_class` flips from `local_polling` to `local_push`** — the integration now subscribes to the hub's `/api/v1/stream` WebSocket and receives state updates every ~3 seconds. If the WS connection drops, it falls back to 30s polling and reconnects with exponential backoff. Polling stays as the safety net for static-ish fields (hub_id, fw_version, etc.) that aren't in WS snapshots.
+
+### Added
+- **WebSocket consumer** (`api.py::connect_ws`, `coordinator.py::_ws_runner`) — long-lived background task subscribed to `/api/v1/stream`
+- **`binary_sensor` per hub**: `firmware update available` (device_class: update)
+- **`event` entity per tank**: `fill_complete` — fires when a tank's level rises ≥5% between coordinator ticks
+- **`diagnostics.py`** — Download diagnostics from Settings → Devices & Services → SmartGhar (redacts hub_id, host, token)
+- Brand icon in `assets/` (SVG + PNG @256/@512) — adapted from the SmartGhar marketing favicon
+
+### Changed
+- Coordinator merges WS dynamic fields (`uptime_s`, `wifi_rssi`, `ota_available`) onto the polled `/info` envelope so static fields survive across WS frames
+- `iot_class` updated everywhere (`manifest.json`, `hacs.json`)
+
+### Requirements
+- Hub firmware **rx-v2.7.0 Phase 1.3** (`CONFIG_HTTPD_WS_SUPPORT=y` + `/api/v1/stream` WebSocket)
+- Older firmware silently falls back to polling-only — WS task fails to connect and just retries quietly
+
+## v0.2.0 — Bidirectional control
 
 Adds editable entities so HA users can control + configure the hub without leaving Home Assistant.
 
