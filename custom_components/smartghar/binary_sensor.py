@@ -12,14 +12,9 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (
-    DEVICE_KIND_PRESENCE,
-    DOMAIN,
-    MANUFACTURER,
-    MODEL_PRESENCE,
-    hub_model_for_product,
-)
+from .const import DEVICE_KIND_PRESENCE, DOMAIN, MODEL_PRESENCE
 from .coordinator import SmartGharCoordinator
+from .device_info import hub_device_info, subdevice_device_info
 
 
 async def async_setup_entry(
@@ -57,14 +52,7 @@ class SmartGharHubOtaAvailable(
 
     @property
     def device_info(self) -> DeviceInfo:
-        info = self.coordinator.info
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.coordinator.hub_id)},
-            manufacturer=MANUFACTURER,
-            model=hub_model_for_product(info.get("product")),
-            name=info.get("hub_name") or f"SmartGhar Hub ({self.coordinator.hub_id[:6]})",
-            sw_version=info.get("fw_version"),
-        )
+        return hub_device_info(self.coordinator)
 
     @property
     def is_on(self) -> bool:
@@ -110,13 +98,13 @@ class SmartGharPresenceOccupancy(
 
     @property
     def device_info(self) -> DeviceInfo:
-        dev = self.coordinator.device_by_id(self._presence_id) or {}
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self.coordinator.hub_id}_presence_{self._presence_id}")},
-            via_device=(DOMAIN, self.coordinator.hub_id),
-            manufacturer=MANUFACTURER,
-            model=MODEL_PRESENCE,
-            name=dev.get("name") or "Presence Sensor",
+        dev = self.coordinator.device_by_id(self._presence_id) or {
+            "kind": "presence", "id": self._presence_id,
+        }
+        return subdevice_device_info(
+            self.coordinator, dev,
+            sub_model=MODEL_PRESENCE,
+            fallback_name="Presence Sensor",
         )
 
     @property

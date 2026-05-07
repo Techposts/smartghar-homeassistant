@@ -73,7 +73,7 @@ class SmartGharConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(info["hub_id"])
                 self._abort_if_unique_id_configured(updates={CONF_HOST: user_input[CONF_HOST]})
                 return self.async_create_entry(
-                    title=info.get("hub_name") or f"SmartGhar Hub ({info['hub_id'][:6]})",
+                    title=info["hub_name"],
                     data={
                         CONF_HOST: user_input[CONF_HOST],
                         CONF_HUB_ID: info["hub_id"],
@@ -153,7 +153,7 @@ class SmartGharConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = err
             elif info:
                 return self.async_create_entry(
-                    title=info.get("hub_name") or self._discovered_name or "SmartGhar Hub",
+                    title=info["hub_name"],
                     data={
                         CONF_HOST: self._discovered_host,
                         CONF_HUB_ID: info["hub_id"],

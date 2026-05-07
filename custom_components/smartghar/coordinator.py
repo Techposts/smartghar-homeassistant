@@ -159,10 +159,18 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 backoff = min(backoff * 2, WS_BACKOFF_MAX_S)
 
     def _handle_ws_msg(self, msg: dict[str, Any]) -> None:
-        """Apply one WS frame to coordinator state and fan out to entities."""
+        """Apply one WS frame to coordinator state and fan out to entities.
+
+        Frame kinds:
+          hello     — handshake, validates schema compat
+          snapshot  — full hub + devices state, periodic
+          event     — single device-state delta, fired on change
+
+        `event` frames let event-driven kinds (lock open/close, gas leak)
+        notify HA in <100ms without waiting for the next snapshot tick.
+        """
         kind = msg.get("kind")
         if kind == "hello":
-            # Validate schema_version compatibility (purely advisory for now).
             schema = msg.get("schema_version", "1.0")
             if not schema.startswith("1."):
                 _LOGGER.warning(
@@ -171,17 +179,26 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
             return
 
-        if kind != "snapshot":
-            # Future kinds (device_state, fill_event, etc.) — ignore for now.
-            return
-
         if not self.data:
             # Polling hasn't completed yet; let it set the baseline.
             return
 
+        if kind == "snapshot":
+            self._apply_snapshot(msg)
+            return
+
+        if kind == "event":
+            self._apply_event(msg)
+            return
+
+        # Unknown frame kind — log once at debug, ignore.
+        _LOGGER.debug("Hub %s sent unknown frame kind=%s", self.hub_id, kind)
+
+    def _apply_snapshot(self, msg: dict[str, Any]) -> None:
         # Merge dynamic fields from WS into the existing /info envelope.
-        # Static fields (hub_id, fw_version, schema_version, ota.current,
-        # ota.channel, claimed, device_kinds) survive from the last poll.
+        # Static fields (hub_id, fw_version, schema_version, topology,
+        # ota.current/channel, claimed, device_kinds) survive from the
+        # last poll and aren't re-sent every snapshot.
         hub_dynamic = msg.get("hub") or {}
         new_info = {**self.data.get("info", {})}
         for key in ("uptime_s", "wifi_rssi"):
@@ -199,4 +216,26 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "devices": msg.get("devices", self.data.get("devices", [])),
             "led": self.data.get("led", {}),
         }
+        self.async_set_updated_data(new_data)
+
+    def _apply_event(self, msg: dict[str, Any]) -> None:
+        """Apply a single-device state delta. Frame shape:
+            {"kind":"event","device_id":<int>,"state":{...partial...}}
+        Unknown device_ids are dropped — they'll appear on next snapshot.
+        """
+        device_id = msg.get("device_id")
+        delta = msg.get("state") or {}
+        if device_id is None or not delta:
+            return
+
+        devices = list(self.data.get("devices", []))
+        for i, dev in enumerate(devices):
+            if dev.get("id") == device_id:
+                merged_state = {**(dev.get("state") or {}), **delta}
+                devices[i] = {**dev, "state": merged_state}
+                break
+        else:
+            return  # device_id not found in current registry
+
+        new_data = {**self.data, "devices": devices}
         self.async_set_updated_data(new_data)

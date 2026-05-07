@@ -13,8 +13,9 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DEVICE_KIND_TANK, DOMAIN, MANUFACTURER, MODEL_HUB, MODEL_TANK
+from .const import DEVICE_KIND_TANK, MODEL_TANK
 from .coordinator import SmartGharCoordinator
+from .device_info import hub_device_info, subdevice_device_info
 
 
 async def async_setup_entry(
@@ -47,14 +48,7 @@ class _HubButtonBase(CoordinatorEntity[SmartGharCoordinator], ButtonEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        info = self.coordinator.info
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.coordinator.hub_id)},
-            manufacturer=MANUFACTURER,
-            model=MODEL_HUB,
-            name=info.get("hub_name") or f"SmartGhar Hub ({self.coordinator.hub_id[:6]})",
-            sw_version=info.get("fw_version"),
-        )
+        return hub_device_info(self.coordinator)
 
 
 class SmartGharHubOtaCheck(_HubButtonBase):
@@ -134,13 +128,13 @@ class SmartGharTankIdentify(CoordinatorEntity[SmartGharCoordinator], ButtonEntit
 
     @property
     def device_info(self) -> DeviceInfo:
-        dev = self.coordinator.device_by_id(self._tank_id) or {}
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self.coordinator.hub_id}_tank_{self._tank_id}")},
-            via_device=(DOMAIN, self.coordinator.hub_id),
-            manufacturer=MANUFACTURER,
-            model=MODEL_TANK,
-            name=dev.get("name") or f"Tank {self._tank_id}",
+        dev = self.coordinator.device_by_id(self._tank_id) or {
+            "kind": "tank", "id": self._tank_id,
+        }
+        return subdevice_device_info(
+            self.coordinator, dev,
+            sub_model=MODEL_TANK,
+            fallback_name=f"Tank {self._tank_id}",
         )
 
     @property

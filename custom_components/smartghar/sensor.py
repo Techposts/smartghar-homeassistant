@@ -38,12 +38,11 @@ from .const import (
     DEVICE_KIND_PRESENCE,
     DEVICE_KIND_TANK,
     DOMAIN,
-    MANUFACTURER,
     MODEL_PRESENCE,
     MODEL_TANK,
-    hub_model_for_product,
 )
 from .coordinator import SmartGharCoordinator
+from .device_info import hub_device_info, subdevice_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -222,15 +221,7 @@ class SmartGharHubSensor(_SmartGharBase):
 
     @property
     def device_info(self) -> DeviceInfo:
-        info = self.coordinator.info
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.coordinator.hub_id)},
-            manufacturer=MANUFACTURER,
-            model=hub_model_for_product(info.get("product")),
-            name=info.get("hub_name") or f"SmartGhar Hub ({self.coordinator.hub_id[:6]})",
-            sw_version=info.get("fw_version"),
-            configuration_url=f"http://{self.coordinator.client.host}/",
-        )
+        return hub_device_info(self.coordinator)
 
     @property
     def native_value(self) -> Any:
@@ -254,13 +245,13 @@ class SmartGharTankSensor(_SmartGharBase):
 
     @property
     def device_info(self) -> DeviceInfo:
-        dev = self.coordinator.device_by_id(self._tank_id) or {}
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self.coordinator.hub_id}_tank_{self._tank_id}")},
-            via_device=(DOMAIN, self.coordinator.hub_id),
-            manufacturer=MANUFACTURER,
-            model=MODEL_TANK,
-            name=dev.get("name") or f"Tank {self._tank_id}",
+        dev = self.coordinator.device_by_id(self._tank_id) or {
+            "kind": "tank", "id": self._tank_id,
+        }
+        return subdevice_device_info(
+            self.coordinator, dev,
+            sub_model=MODEL_TANK,
+            fallback_name=f"Tank {self._tank_id}",
         )
 
     @property
@@ -305,13 +296,13 @@ class SmartGharPresenceSensor(_SmartGharBase):
 
     @property
     def device_info(self) -> DeviceInfo:
-        dev = self.coordinator.device_by_id(self._presence_id) or {}
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self.coordinator.hub_id}_presence_{self._presence_id}")},
-            via_device=(DOMAIN, self.coordinator.hub_id),
-            manufacturer=MANUFACTURER,
-            model=MODEL_PRESENCE,
-            name=dev.get("name") or "Presence Sensor",
+        dev = self.coordinator.device_by_id(self._presence_id) or {
+            "kind": "presence", "id": self._presence_id,
+        }
+        return subdevice_device_info(
+            self.coordinator, dev,
+            sub_model=MODEL_PRESENCE,
+            fallback_name="Presence Sensor",
         )
 
     @property
@@ -372,13 +363,13 @@ class SmartGharTankConsumption(CoordinatorEntity[SmartGharCoordinator], RestoreS
 
     @property
     def device_info(self) -> DeviceInfo:
-        dev = self.coordinator.device_by_id(self._tank_id) or {}
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self.coordinator.hub_id}_tank_{self._tank_id}")},
-            via_device=(DOMAIN, self.coordinator.hub_id),
-            manufacturer=MANUFACTURER,
-            model=MODEL_TANK,
-            name=dev.get("name") or f"Tank {self._tank_id}",
+        dev = self.coordinator.device_by_id(self._tank_id) or {
+            "kind": "tank", "id": self._tank_id,
+        }
+        return subdevice_device_info(
+            self.coordinator, dev,
+            sub_model=MODEL_TANK,
+            fallback_name=f"Tank {self._tank_id}",
         )
 
     async def async_added_to_hass(self) -> None:
@@ -466,13 +457,13 @@ class SmartGharTankWaterVolume(CoordinatorEntity[SmartGharCoordinator], SensorEn
 
     @property
     def device_info(self) -> DeviceInfo:
-        dev = self.coordinator.device_by_id(self._tank_id) or {}
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self.coordinator.hub_id}_tank_{self._tank_id}")},
-            via_device=(DOMAIN, self.coordinator.hub_id),
-            manufacturer=MANUFACTURER,
-            model=MODEL_TANK,
-            name=dev.get("name") or f"Tank {self._tank_id}",
+        dev = self.coordinator.device_by_id(self._tank_id) or {
+            "kind": "tank", "id": self._tank_id,
+        }
+        return subdevice_device_info(
+            self.coordinator, dev,
+            sub_model=MODEL_TANK,
+            fallback_name=f"Tank {self._tank_id}",
         )
 
     @property

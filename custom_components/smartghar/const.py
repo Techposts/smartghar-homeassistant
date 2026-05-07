@@ -8,8 +8,8 @@ MANUFACTURER = "SmartGhar"
 
 # Spec version this integration speaks. Hub firmware advertises its
 # schema_version on /api/v1/info; if it ever bumps to 2.x, this integration
-# would need updating.
-PROTOCOL_VERSION = "1.0"
+# would need updating. 1.1 added `topology` + `stream` blocks (alpha.4).
+PROTOCOL_VERSION = "1.1"
 ZEROCONF_TYPE = "_smartghar._tcp.local."
 
 DEFAULT_PORT = 80
@@ -41,10 +41,6 @@ CONF_LOCAL_TOKEN = "local_token"
 MODEL_HUB_TANKSYNC = "TankSync Hub"
 MODEL_HUB_AMBISENSE = "AmbiSense Hub"
 MODEL_HUB_GENERIC = "SmartGhar Hub"
-# Backward-compat alias — older code paths in this integration import
-# MODEL_HUB directly. Kept pointing at the TankSync model since that's
-# what was running in the field before AmbiSense joined.
-MODEL_HUB = MODEL_HUB_TANKSYNC
 
 MODEL_TANK = "TankSync TX (Tank)"
 MODEL_PRESENCE = "AmbiSense Sensor"
@@ -52,10 +48,11 @@ MODEL_PRESENCE = "AmbiSense Sensor"
 
 def hub_model_for_product(product: str | None) -> str:
     """Pick the device-registry model string for the hub based on the
-    `product` field returned by /api/v1/info. Older firmware that
-    doesn't include a product field falls through to the TankSync
-    label since that was the original product."""
-    return {
-        "tanksync": MODEL_HUB_TANKSYNC,
-        "ambisense": MODEL_HUB_AMBISENSE,
-    }.get(product or "tanksync", MODEL_HUB_GENERIC)
+    `product` field returned by /api/v1/info. Unknown or missing
+    products fall through to the generic SmartGhar label rather than
+    silently mislabeling them as TankSync."""
+    if product == "tanksync":
+        return MODEL_HUB_TANKSYNC
+    if product == "ambisense":
+        return MODEL_HUB_AMBISENSE
+    return MODEL_HUB_GENERIC

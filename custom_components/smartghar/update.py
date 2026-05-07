@@ -20,8 +20,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import SmartGharApiError
-from .const import DOMAIN, MANUFACTURER, MODEL_HUB
 from .coordinator import SmartGharCoordinator
+from .device_info import hub_device_info
 
 
 async def async_setup_entry(
@@ -54,14 +54,7 @@ class SmartGharHubUpdate(CoordinatorEntity[SmartGharCoordinator], UpdateEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        info = self.coordinator.info
-        return DeviceInfo(
-            identifiers={(DOMAIN, self.coordinator.hub_id)},
-            manufacturer=MANUFACTURER,
-            model=MODEL_HUB,
-            name=info.get("hub_name") or f"SmartGhar Hub ({self.coordinator.hub_id[:6]})",
-            sw_version=info.get("fw_version"),
-        )
+        return hub_device_info(self.coordinator)
 
     @property
     def installed_version(self) -> str | None:
@@ -91,11 +84,10 @@ class SmartGharHubUpdate(CoordinatorEntity[SmartGharCoordinator], UpdateEntity):
         return (
             f"### Hub firmware {latest} available\n\n"
             f"Currently installed: **{self.installed_version}**.\n\n"
-            f"The install pulls the .bin from `tanksync.smartghar.org` and "
-            f"flashes it over the air. The hub will be unreachable for ~60 "
-            f"seconds during the flash, then auto-reboot and reconnect. "
-            f"Tank state is unaffected — TX devices keep transmitting; the "
-            f"hub catches up after reboot."
+            f"The hub flashes the new firmware over the air. It will be "
+            f"unreachable for ~60 seconds during the flash, then auto-reboot "
+            f"and reconnect. Any attached sub-devices keep operating "
+            f"independently and the hub picks them back up after reboot."
         )
 
     async def async_install(
