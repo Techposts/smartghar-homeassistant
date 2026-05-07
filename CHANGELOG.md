@@ -2,6 +2,33 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## v0.7.0 — AmbiSense presence support (cross-product fleet)
+
+The integration is no longer TankSync-only. AmbiSense (radar presence + LED follow-me) on firmware v6.2.0-alpha.2+ is auto-discovered and rendered as a fully native HA device alongside any TankSync hubs on the same network.
+
+This is the first product addition since the integration's scaffold landed; the changes deliberately follow the dispatch-by-`kind` pattern designed for exactly this case, so future products (PowerSync, RidgeSync, etc.) ship as small additive PRs without touching the coordinator or config_flow.
+
+### Added
+- **`DEVICE_KIND_PRESENCE = "presence"`** — new device kind for AmbiSense's standalone-hub topology (single ESP32 advertising itself as a hub with one virtual sub-device of `kind: "presence"`).
+- **`SmartGharPresenceOccupancy`** binary_sensor — `device_class: occupancy`. Stationary, target_count, nearest_cm, seconds_since_seen ride as `extra_state_attributes` so HA automations can compose conditions like "occupied AND stationary > 5 min" without separate entities.
+- **`SmartGharPresenceSensor`** entities — `nearest_cm` (distance, cm), `target_count`, `seconds_since_seen` (diagnostic, duration), `rssi_dbm` (diagnostic, signal_strength, disabled by default). nearest_cm normalizes the firmware's -1 sentinel (vacant) to None so HA renders "Unknown" instead of "-1 cm".
+- **`hub_model_for_product()`** dispatcher in `const.py` — picks the device-registry model string from `info["product"]`. AmbiSense → "AmbiSense Hub", TankSync → "TankSync Hub", unknown → "SmartGhar Hub".
+- New translation keys: `occupancy`, `presence_nearest`, `presence_target_count`, `presence_seconds_since_seen`, `presence_rssi`.
+
+### Multi-device
+- Two AmbiSense units on one network → two HA devices, two sets of entities, zero collisions. `hub_id` (derived from MAC) is the integration's primary key.
+- AmbiSense + TankSync co-existing → both render correctly with their respective product labels, both fully functional.
+
+### Backward compatibility
+- No breaking changes for TankSync. The `MODEL_HUB` constant is preserved as an alias to `MODEL_HUB_TANKSYNC`. Existing entity unique_ids and device identifiers are untouched.
+- Older AmbiSense firmware (no `product` field in `/api/v1/info`) falls back to the TankSync label — degrades gracefully but you'll want to update firmware to v6.2.0-alpha.2+ for the full presence experience.
+
+### Fixed
+- **`hacs.json` invalid keys**: dropped `iot_class`, `documentation`, `issue_tracker`, `_iot_class_note` from `hacs.json` — those belong in `manifest.json` (where they already correctly are). Pre-existing config issue surfaced by the HACS GitHub Action upgrade; HACS validation now passes the `hacsjson` check.
+
+### Spec reference
+- [SmartGhar protocol v1.0](https://github.com/Techposts/AmbiSense/blob/v6-idf-rewrite/docs/SMARTGHAR-PROTOCOL.md) — wire contract, device-kind taxonomy, entity-builder template, "adding a new product" checklist.
+
 ## v0.6.1 — Hub address: prefer IP over `.local` hostname
 
 Critical fix for users on HAOS-in-Proxmox, Docker bridge networking, and other setups where `.local` hostname resolution is unreliable.
