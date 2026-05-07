@@ -27,11 +27,35 @@ DEVICE_KIND_GAS = "gas"
 DEVICE_KIND_SOIL = "soil"
 DEVICE_KIND_DOOR = "door"
 DEVICE_KIND_AIR = "air"
+# AmbiSense — radar presence + LED follow-me. Standalone hub (single
+# ESP32 advertising itself) presents one virtual sub-device of this kind.
+DEVICE_KIND_PRESENCE = "presence"
 
 # Config keys
 CONF_HUB_ID = "hub_id"
 CONF_LOCAL_TOKEN = "local_token"
 
 # Model strings for HA device registry — visible in Settings → Devices.
-MODEL_HUB = "TankSync Hub"
+# Hub model is dispatched by the `product` field from /api/v1/info so a
+# single integration shows the right name for each Techposts product.
+MODEL_HUB_TANKSYNC = "TankSync Hub"
+MODEL_HUB_AMBISENSE = "AmbiSense Hub"
+MODEL_HUB_GENERIC = "SmartGhar Hub"
+# Backward-compat alias — older code paths in this integration import
+# MODEL_HUB directly. Kept pointing at the TankSync model since that's
+# what was running in the field before AmbiSense joined.
+MODEL_HUB = MODEL_HUB_TANKSYNC
+
 MODEL_TANK = "TankSync TX (Tank)"
+MODEL_PRESENCE = "AmbiSense Sensor"
+
+
+def hub_model_for_product(product: str | None) -> str:
+    """Pick the device-registry model string for the hub based on the
+    `product` field returned by /api/v1/info. Older firmware that
+    doesn't include a product field falls through to the TankSync
+    label since that was the original product."""
+    return {
+        "tanksync": MODEL_HUB_TANKSYNC,
+        "ambisense": MODEL_HUB_AMBISENSE,
+    }.get(product or "tanksync", MODEL_HUB_GENERIC)

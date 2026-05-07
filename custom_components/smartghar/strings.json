@@ -52,6 +52,18 @@
       },
       "tank_consumption": {
         "name": "Water consumed"
+      },
+      "presence_nearest": {
+        "name": "Nearest target"
+      },
+      "presence_target_count": {
+        "name": "Target count"
+      },
+      "presence_seconds_since_seen": {
+        "name": "Time since last detection"
+      },
+      "presence_rssi": {
+        "name": "Radar Wi-Fi signal"
       }
     },
     "text": {
@@ -90,6 +102,9 @@
     "binary_sensor": {
       "ota_available": {
         "name": "Firmware update available"
+      },
+      "occupancy": {
+        "name": "Occupancy"
       }
     },
     "event": {
