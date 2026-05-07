@@ -1,4 +1,4 @@
-"""Binary sensor entities — OTA availability."""
+"""Binary sensor entities — OTA availability + presence occupancy."""
 from __future__ import annotations
 
 from homeassistant.components.binary_sensor import (
@@ -12,7 +12,13 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER, MODEL_HUB
+from .const import (
+    DEVICE_KIND_PRESENCE,
+    DOMAIN,
+    MANUFACTURER,
+    MODEL_PRESENCE,
+    hub_model_for_product,
+)
 from .coordinator import SmartGharCoordinator
 
 
@@ -22,7 +28,16 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: SmartGharCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([SmartGharHubOtaAvailable(coordinator)])
+    entities: list[BinarySensorEntity] = [SmartGharHubOtaAvailable(coordinator)]
+    # Presence sub-devices — one occupancy sensor per AmbiSense unit.
+    # AmbiSense's standalone-hub model presents itself as a hub with
+    # one virtual sub-device of kind="presence" (id=0); future products
+    # could attach multiple presence devices to one hub the same way
+    # TankSync attaches multiple tanks.
+    for dev in coordinator.devices:
+        if dev.get("kind") == DEVICE_KIND_PRESENCE:
+            entities.append(SmartGharPresenceOccupancy(coordinator, dev["id"]))
+    async_add_entities(entities)
 
 
 class SmartGharHubOtaAvailable(
@@ -46,7 +61,7 @@ class SmartGharHubOtaAvailable(
         return DeviceInfo(
             identifiers={(DOMAIN, self.coordinator.hub_id)},
             manufacturer=MANUFACTURER,
-            model=MODEL_HUB,
+            model=hub_model_for_product(info.get("product")),
             name=info.get("hub_name") or f"SmartGhar Hub ({self.coordinator.hub_id[:6]})",
             sw_version=info.get("fw_version"),
         )
@@ -66,3 +81,67 @@ class SmartGharHubOtaAvailable(
             "available": ota.get("available"),
             "channel": ota.get("channel"),
         }
+
+
+class SmartGharPresenceOccupancy(
+    CoordinatorEntity[SmartGharCoordinator], BinarySensorEntity
+):
+    """Occupancy state of one AmbiSense presence sensor.
+
+    Stationary-vs-moving + target count + nearest distance are exposed
+    as `extra_state_attributes` so HA automations can react to "occupied
+    AND moving" or "occupied AND stationary for >5min" without needing
+    separate binary sensors. The dedicated distance + target-count
+    sensors live in `sensor.py` for users who want to graph them.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "occupancy"
+    _attr_device_class = BinarySensorDeviceClass.OCCUPANCY
+
+    def __init__(
+        self, coordinator: SmartGharCoordinator, presence_id: int
+    ) -> None:
+        super().__init__(coordinator)
+        self._presence_id = presence_id
+        self._attr_unique_id = (
+            f"smartghar_{coordinator.hub_id}_presence_{presence_id}_occupancy"
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        dev = self.coordinator.device_by_id(self._presence_id) or {}
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{self.coordinator.hub_id}_presence_{self._presence_id}")},
+            via_device=(DOMAIN, self.coordinator.hub_id),
+            manufacturer=MANUFACTURER,
+            model=MODEL_PRESENCE,
+            name=dev.get("name") or "Presence Sensor",
+        )
+
+    @property
+    def is_on(self) -> bool | None:
+        dev = self.coordinator.device_by_id(self._presence_id)
+        if not dev:
+            return None
+        return (dev.get("state") or {}).get("occupied")
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        dev = self.coordinator.device_by_id(self._presence_id)
+        if not dev:
+            return None
+        st = dev.get("state") or {}
+        return {
+            "stationary": st.get("stationary"),
+            "target_count": st.get("target_count"),
+            "nearest_cm": st.get("nearest_cm"),
+            "seconds_since_seen": st.get("seconds_since_seen"),
+        }
+
+    @property
+    def available(self) -> bool:
+        return (
+            super().available
+            and self.coordinator.device_by_id(self._presence_id) is not None
+        )

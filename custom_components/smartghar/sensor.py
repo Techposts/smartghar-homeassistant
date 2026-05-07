@@ -23,7 +23,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    EntityCategory,
     UnitOfElectricPotential,
+    UnitOfLength,
     UnitOfTime,
     UnitOfVolume,
 )
@@ -33,11 +35,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    DEVICE_KIND_PRESENCE,
     DEVICE_KIND_TANK,
     DOMAIN,
     MANUFACTURER,
-    MODEL_HUB,
+    MODEL_PRESENCE,
     MODEL_TANK,
+    hub_model_for_product,
 )
 from .coordinator import SmartGharCoordinator
 
@@ -102,6 +106,45 @@ TANK_SENSORS: tuple[SensorEntityDescription, ...] = (
     ),
 )
 
+# AmbiSense presence sensor — one set of entities per presence device.
+# `nearest_cm` returns -1 from firmware when vacant; SmartGharPresenceSensor
+# normalises that to None so HA shows "Unknown" instead of a fake "-1 cm".
+PRESENCE_SENSORS: tuple[SensorEntityDescription, ...] = (
+    SensorEntityDescription(
+        key="nearest_cm",
+        translation_key="presence_nearest",
+        native_unit_of_measurement=UnitOfLength.CENTIMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:human",
+        suggested_display_precision=0,
+    ),
+    SensorEntityDescription(
+        key="target_count",
+        translation_key="presence_target_count",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:account-multiple",
+    ),
+    SensorEntityDescription(
+        key="seconds_since_seen",
+        translation_key="presence_seconds_since_seen",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
+    ),
+    SensorEntityDescription(
+        key="rssi_dbm",
+        translation_key="presence_rssi",
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+)
+
 
 # Computed sensors — derived from device state/config in the integration,
 # not pulled from a hub field. These are what visual cards (fluid-level,
@@ -136,6 +179,15 @@ async def async_setup_entry(
         entities.append(SmartGharTankWaterVolume(coordinator, dev["id"]))
         # Cumulative consumption sensor — drives HA's Energy dashboard.
         entities.append(SmartGharTankConsumption(coordinator, dev["id"]))
+
+    # Presence sensors — one set per AmbiSense unit (kind="presence").
+    # The occupancy binary_sensor lives in binary_sensor.py; these are
+    # the numeric companions (distance, target count, last-seen).
+    for dev in coordinator.devices:
+        if dev.get("kind") != DEVICE_KIND_PRESENCE:
+            continue
+        for desc in PRESENCE_SENSORS:
+            entities.append(SmartGharPresenceSensor(coordinator, desc, dev["id"]))
 
     async_add_entities(entities)
 
@@ -174,7 +226,7 @@ class SmartGharHubSensor(_SmartGharBase):
         return DeviceInfo(
             identifiers={(DOMAIN, self.coordinator.hub_id)},
             manufacturer=MANUFACTURER,
-            model=MODEL_HUB,
+            model=hub_model_for_product(info.get("product")),
             name=info.get("hub_name") or f"SmartGhar Hub ({self.coordinator.hub_id[:6]})",
             sw_version=info.get("fw_version"),
             configuration_url=f"http://{self.coordinator.client.host}/",
@@ -223,6 +275,64 @@ class SmartGharTankSensor(_SmartGharBase):
         # Mark unavailable if the tank dropped off the registry between polls
         # (e.g., user removed it via PWA).
         return super().available and self.coordinator.device_by_id(self._tank_id) is not None
+
+
+class SmartGharPresenceSensor(_SmartGharBase):
+    """Sensor attached to one AmbiSense presence device.
+
+    Each AmbiSense unit advertises itself as a hub with one virtual
+    sub-device of kind="presence" (id=0). This class produces the
+    numeric companions to the binary occupancy sensor: nearest cm,
+    target count, time-since-last-detection, and the radar's RSSI.
+
+    nearest_cm reads -1 from firmware when vacant; we surface that as
+    None so HA renders "Unknown" instead of "-1 cm". Stationary state
+    rides as an attribute on the binary occupancy sensor (in
+    binary_sensor.py) since it's tightly coupled to "occupied" anyway.
+    """
+
+    def __init__(
+        self,
+        coordinator: SmartGharCoordinator,
+        description: SensorEntityDescription,
+        presence_id: int,
+    ) -> None:
+        super().__init__(coordinator, description)
+        self._presence_id = presence_id
+        self._attr_unique_id = (
+            f"smartghar_{coordinator.hub_id}_presence_{presence_id}_{description.key}"
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        dev = self.coordinator.device_by_id(self._presence_id) or {}
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{self.coordinator.hub_id}_presence_{self._presence_id}")},
+            via_device=(DOMAIN, self.coordinator.hub_id),
+            manufacturer=MANUFACTURER,
+            model=MODEL_PRESENCE,
+            name=dev.get("name") or "Presence Sensor",
+        )
+
+    @property
+    def native_value(self) -> Any:
+        dev = self.coordinator.device_by_id(self._presence_id)
+        if not dev:
+            return None
+        v = (dev.get("state") or {}).get(self.entity_description.key)
+        # Firmware uses -1 as the sentinel for "no target detected" on
+        # nearest_cm; surface that as None instead of leaking -1 into
+        # graphs and statistics.
+        if self.entity_description.key == "nearest_cm" and v == -1:
+            return None
+        return v
+
+    @property
+    def available(self) -> bool:
+        return (
+            super().available
+            and self.coordinator.device_by_id(self._presence_id) is not None
+        )
 
 
 class SmartGharTankConsumption(CoordinatorEntity[SmartGharCoordinator], RestoreSensor):

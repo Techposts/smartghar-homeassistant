@@ -4,9 +4,9 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.6.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](CHANGELOG.md)
 
-Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring), with **PowerSync** (energy) and other accessories on the roadmap.
+Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring) and **[AmbiSense](https://github.com/Techposts/AmbiSense)** (radar presence + LED follow-me lighting), with **PowerSync** (energy), **RidgeSync** (fingerprint locks), and other products on the roadmap. One integration, every Techposts device on your network auto-discovers.
 
 > **📚 [Read the Wiki →](https://github.com/Techposts/smartghar-homeassistant/wiki)** — full documentation lives there: installation, entities reference, Energy dashboard setup, multi-hub guides, troubleshooting, FAQ.
 
@@ -36,8 +36,9 @@ Most consumer IoT integrations require a vendor cloud account, OAuth dance, and 
 
 For details + troubleshooting, see the **[Installation page in the wiki →](https://github.com/Techposts/smartghar-homeassistant/wiki/Installation)**.
 
-## Status (v0.6.1)
+## Status (v0.7.0)
 
+### TankSync
 - Real-time push via WebSocket against hub firmware **rx-v2.7.0+**
 - Energy dashboard cumulative consumption sensor
 - Bidirectional control: rename, capacity, LED, OTA, identify, reboot
@@ -46,7 +47,18 @@ For details + troubleshooting, see the **[Installation page in the wiki →](htt
 - 2 automation blueprints (low-water-alert, refill-confirmation) — install in one click
 - `smartghar.refill_marker` service for manual fill logging
 
+### AmbiSense (new in v0.7.0)
+- Auto-discovery against AmbiSense firmware **v6.2.0-alpha.2+**
+- `binary_sensor: occupancy` with stationary, target_count, nearest_cm, seconds_since_seen as attributes
+- `sensor: distance` (cm), `target_count`, `seconds_since_seen` (diagnostic), `rssi_dbm` (diagnostic)
+- Hub model dispatch — AmbiSense devices show as "AmbiSense Hub", TankSync as "TankSync Hub"
+- Multi-device safe: 5 AmbiSense units = 5 distinct HA devices, no entity-id collisions
+
 For the full entity catalogue, see **[Entities Reference →](https://github.com/Techposts/smartghar-homeassistant/wiki/Entities-Reference)**.
+
+## Cross-product protocol
+
+All Techposts IoT products implement the same wire contract documented in the [SmartGhar protocol spec](https://github.com/Techposts/AmbiSense/blob/v6-idf-rewrite/docs/SMARTGHAR-PROTOCOL.md). Adding a new product (RidgeSync, etc.) to this integration is a small additive PR — new `DEVICE_KIND_*`, new entity classes, new dispatch case. No coordinator or config_flow changes.
 
 ## Native Lovelace card — explicit non-goal
 
