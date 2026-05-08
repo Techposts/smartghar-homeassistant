@@ -165,20 +165,27 @@ class SmartGharHubClient:
         """Reboot the hub. It will be unreachable for ~30 seconds."""
         await self._post("/api/v1/hub/reboot")
 
-    def ws_url(self) -> str:
-        """Build the ws:// URL for /api/v1/stream."""
-        return f"ws://{self.host}:{self._base.port or DEFAULT_PORT}/api/v1/stream"
+    def ws_url(self, ws_path: str = "/api/v1/stream") -> str:
+        """Build the ws:// URL for the given WS path.
 
-    async def connect_ws(self) -> aiohttp.ClientWebSocketResponse:
-        """Open the /api/v1/stream WebSocket. Caller is responsible for closing.
+        Path comes from `info.stream.ws_path` per smartghar protocol 1.1.
+        Default kept for callers that don't have info loaded yet, but the
+        coordinator now passes the contract-declared path explicitly.
+        """
+        return f"ws://{self.host}:{self._base.port or DEFAULT_PORT}{ws_path}"
 
-        Use as an async context: `async with client.connect_ws() as ws: ...`
+    async def connect_ws(
+        self, ws_path: str = "/api/v1/stream"
+    ) -> aiohttp.ClientWebSocketResponse:
+        """Open the WebSocket at the contract-declared `ws_path`.
+
+        Caller is responsible for closing.
         """
         headers = {}
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
         return await self._session.ws_connect(
-            self.ws_url(),
+            self.ws_url(ws_path),
             headers=headers,
             heartbeat=20.0,   # ping every 20s; aiohttp closes if no pong
             timeout=10.0,

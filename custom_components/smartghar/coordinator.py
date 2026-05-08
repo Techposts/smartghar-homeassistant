@@ -50,6 +50,7 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.hub_id = hub_id
         self._ws_task: asyncio.Task | None = None
         self._ws_connected: bool = False
+        self._ws_path: str | None = None
         self._stop = False
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -96,11 +97,40 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     # ── WebSocket push ────────────────────────────────────────────────────────
 
+    def _ws_path_from_contract(self) -> str | None:
+        """Read the WS path from the hub's declared `info.stream`.
+
+        Returns None when the hub doesn't advertise a stream block —
+        either because it speaks schema 1.0 (TankSync today) or because
+        the firmware author chose polling-only. Caller treats None as
+        "don't start a WS task at all" — avoids the 404-reconnect-loop
+        that would otherwise pollute HA logs every 60 s forever.
+        """
+        stream = self.info.get("stream") or {}
+        path = stream.get("ws_path")
+        if isinstance(path, str) and path.startswith("/"):
+            return path
+        return None
+
     def start_ws(self) -> None:
-        """Spawn the WS background task. Idempotent."""
+        """Spawn the WS background task if the hub declares a stream.
+
+        Reads `info.stream.ws_path` from the cached /api/v1/info. If the
+        hub doesn't declare one (schema 1.0 firmware, or 1.1 firmware
+        that opts out of push), stays on polling only — no reconnect
+        loop, no log noise. Idempotent.
+        """
         if self._ws_task and not self._ws_task.done():
             return
+        ws_path = self._ws_path_from_contract()
+        if ws_path is None:
+            _LOGGER.info(
+                "Hub %s does not declare info.stream — staying on polling-only mode",
+                self.hub_id,
+            )
+            return
         self._stop = False
+        self._ws_path = ws_path
         self._ws_task = self.hass.async_create_background_task(
             self._ws_runner(), name=f"smartghar_ws_{self.hub_id}"
         )
@@ -117,14 +147,15 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._ws_connected = False
 
     async def _ws_runner(self) -> None:
+        ws_path = self._ws_path or "/api/v1/stream"
         backoff = WS_BACKOFF_INITIAL_S
         while not self._stop:
             try:
-                ws = await self.client.connect_ws()
+                ws = await self.client.connect_ws(ws_path)
             except Exception as err:
                 _LOGGER.debug(
-                    "WS connect to hub %s failed: %s — retrying in %.1fs",
-                    self.hub_id, err, backoff,
+                    "WS connect to hub %s at %s failed: %s — retrying in %.1fs",
+                    self.hub_id, ws_path, err, backoff,
                 )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, WS_BACKOFF_MAX_S)
@@ -132,7 +163,7 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             self._ws_connected = True
             backoff = WS_BACKOFF_INITIAL_S
-            _LOGGER.info("WS connected to hub %s", self.hub_id)
+            _LOGGER.info("WS connected to hub %s at %s", self.hub_id, ws_path)
 
             try:
                 async for raw in ws:
