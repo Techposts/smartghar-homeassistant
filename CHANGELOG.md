@@ -2,6 +2,25 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## v0.8.0 (planned) — MAC-anchored identity + migration hook + entity cleanup
+
+Aligns the integration with the hub-side pair identity redesign that shipped in **rx-v2.7.10 / tx-v2.0.11 / rx-v2.7.11** (cloud repo, 2026-05-20+21). See the full hub-side rationale in [`PAIRING_IDENTITY.md`](https://github.com/Techposts/tanksync-cloud/blob/main/cloud/docs/PAIRING_IDENTITY.md) (private repo).
+
+### Why this release matters
+
+The hub now exposes a stable **TX MAC address** in `/api/v1/devices` responses (12-char lowercase hex, empty string for entries paired with pre-v2.0.11 TX firmware). MAC is immutable across re-pairs, hub firmware upgrades, and address reassignment. This integration should anchor `unique_id` on MAC for proper history continuity.
+
+### Planned changes
+
+- **`async_migrate_entry`** hook in `config_flow.py` — detects firmware version change and logs an upgrade warning if existing tanks would re-key
+- **`device_info.py::_subdevice_identifier()`** — fallback chain: `dev.get("mac")` first, then `device["id"]` for legacy entries
+- **Coordinator entity cleanup** — when a device disappears from `/api/v1/devices` (deleted on the hub via PWA or Web UI), unregister the entities from HA instead of leaving them `unavailable` forever
+- **Optional: "Unpair tank" button** — calls the cloud's `DELETE /api/devices/:id` (which now propagates to the hub via MQTT `remove_tx` in cloud release 2026-05-21)
+
+### Migration story (for users)
+
+If you upgrade hub firmware to rx-v2.7.10+ and re-pair existing tanks **with TX firmware ≥ 2.0.11**, the new pairing assigns a small-int address (e.g. 1, 2, 3…) replacing the old random 16-bit. To preserve HA entity history across the transition: don't delete the integration; we ship a migration hook in this release.
+
 ## v0.7.0 — AmbiSense presence support (cross-product fleet)
 
 The integration is no longer TankSync-only. AmbiSense (radar presence + LED follow-me) on firmware v6.2.0-alpha.2+ is auto-discovered and rendered as a fully native HA device alongside any TankSync hubs on the same network.
