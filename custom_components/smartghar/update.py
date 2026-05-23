@@ -20,6 +20,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import SmartGharApiError
+from .const import DOMAIN
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info
 

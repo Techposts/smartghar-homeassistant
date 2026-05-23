@@ -21,6 +21,17 @@ The hub now exposes a stable **TX MAC address** in `/api/v1/devices` responses (
 
 If you upgrade hub firmware to rx-v2.7.10+ and re-pair existing tanks **with TX firmware ≥ 2.0.11**, the new pairing assigns a small-int address (e.g. 1, 2, 3…) replacing the old random 16-bit. To preserve HA entity history across the transition: don't delete the integration; we ship a migration hook in this release.
 
+## v0.7.3 — Platform setup hotfix
+
+Critical fix for users installing or updating the integration. Five platform files referenced `DOMAIN` without importing it, which caused `async_setup_entry` to raise `NameError: name 'DOMAIN' is not defined` on first config-entry setup. Affected platforms: `button`, `number`, `text`, `event`, `update` — every TankSync interaction surface other than the read-only `sensor` and `binary_sensor` entities.
+
+### Fixed
+- **`NameError: name 'DOMAIN' is not defined`** during platform setup — added the missing `from .const import DOMAIN` line (or appended `DOMAIN` to the existing import) in `button.py`, `number.py`, `text.py`, `event.py`, and `update.py`. Users on v0.7.0–v0.7.2 who saw the integration fail to load any controls (only sensors visible) are unblocked.
+
+### Upgrade notes
+- No config migration required — pure import fix, no schema or data changes.
+- If your install was stuck partially loaded, fully remove the integration in HA UI and re-add it (zeroconf will re-discover the hub).
+
 ## v0.7.0 — AmbiSense presence support (cross-product fleet)
 
 The integration is no longer TankSync-only. AmbiSense (radar presence + LED follow-me) on firmware v6.2.0-alpha.2+ is auto-discovered and rendered as a fully native HA device alongside any TankSync hubs on the same network.

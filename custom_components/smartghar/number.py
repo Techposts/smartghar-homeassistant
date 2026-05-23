@@ -17,7 +17,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DEVICE_KIND_TANK, MODEL_TANK
+from .const import DEVICE_KIND_TANK, DOMAIN, MODEL_TANK
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info
 
