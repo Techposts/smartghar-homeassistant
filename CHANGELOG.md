@@ -44,6 +44,31 @@ Critical fix for users installing or updating the integration. Five platform fil
 - No config migration required — pure import fix, no schema or data changes.
 - If your install was stuck partially loaded, fully remove the integration in HA UI and re-add it (zeroconf will re-discover the hub).
 
+## v0.7.2 — Honour `info.stream` contract (gate WS startup + use declared path)
+
+Quiet fix for two bugs against schema 1.1's `info.stream` contract that landed in v0.7.1.
+
+### Fixed
+- **Hubs declaring a non-default `info.stream.ws_path`** were ignored — the coordinator hardcoded `/api/v1/stream` instead of reading the path the hub advertised. Future products advertising e.g. `/api/v2/events` would never be followed even though the contract names `ws_path` as the source of truth.
+- **Hubs that don't declare `info.stream` at all** (TankSync schema 1.0, or future opt-out-of-push products) still triggered WebSocket connection attempts to `/api/v1/stream`, hitting 404 and retrying forever with exponential backoff capped at 60 s — polluting HA logs with one failed-WS-connect per minute.
+
+### Behavior after this release
+- Coordinator reads `info.stream.ws_path` at `start_ws()`. If present + valid → spawns the WS task on that path. If absent → logs "polling-only mode" once and stays on the 30-second polling channel (no log noise, no spam, no retry storms).
+
+## v0.7.1 — Topology-aware device rendering + event frames
+
+Two architectural improvements for cross-product fleet support, plus a cleanup sweep of legacy backwards-compat shims.
+
+### Added — topology rendering
+- `device_info.py` with `hub_device_info()` and `subdevice_device_info()` helpers. The subdevice helper reads `info["topology"]` and either returns the hub's `DeviceInfo` verbatim (standalone topology — collapse all sub-device entities onto the hub's HA card) or builds a child `DeviceInfo` with `via_device` (hub topology — each sub-device renders as its own HA device).
+- **Net visual effect**: AmbiSense now shows as **one** HA device with all presence entities under it, instead of an "AmbiSense Hub" card plus a synthetic "Presence Sensor" child card. TankSync continues to render hub + per-tank cards as before (hub topology preserved).
+
+### Added — event frames
+- WebSocket consumer now handles `event` frame type (single-device-state delta) on top of the existing `snapshot` (full hub+devices state) and `hello` (handshake) frames. Real-time push for lock/gas/etc. state changes fires within <100 ms instead of waiting for the next snapshot.
+
+### Refactored
+- Every entity file (`binary_sensor`, `sensor`, `button`, `number`, `update`, `event`, `text`) now uses the two device_info helpers — no more hardcoded `MODEL_HUB` or per-class `DeviceInfo` construction. Removes ~80 lines of duplicated boilerplate.
+
 ## v0.7.0 — AmbiSense presence support (cross-product fleet)
 
 The integration is no longer TankSync-only. AmbiSense (radar presence + LED follow-me) on firmware v6.2.0-alpha.2+ is auto-discovered and rendered as a fully native HA device alongside any TankSync hubs on the same network.
