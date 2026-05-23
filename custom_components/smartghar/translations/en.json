@@ -105,6 +105,22 @@
       },
       "occupancy": {
         "name": "Occupancy"
+      },
+      "sensor_error": {
+        "name": "Sensor not responding"
+      },
+      "sensor_stuck": {
+        "name": "Sensor stuck"
+      }
+    },
+    "switch": {
+      "buzzer_enabled": {
+        "name": "Buzzer alerts"
+      }
+    },
+    "select": {
+      "buzzer_volume": {
+        "name": "Buzzer volume"
       }
     },
     "event": {

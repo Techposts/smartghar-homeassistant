@@ -70,7 +70,16 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except SmartGharApiError as err:
             _LOGGER.debug("LED state unavailable on hub %s: %s", self.hub_id, err)
 
-        return {"info": info, "devices": devices, "led": led}
+        # Buzzer config — requires hub firmware rx-v2.8.4+. Older firmware
+        # returns 404 for /api/v1/hub/buzzer; we treat that as "no buzzer
+        # available" and the switch/select entities self-mark unavailable.
+        buzzer: dict[str, Any] = {}
+        try:
+            buzzer = await self.client.get_buzzer()
+        except SmartGharApiError as err:
+            _LOGGER.debug("Buzzer state unavailable on hub %s: %s", self.hub_id, err)
+
+        return {"info": info, "devices": devices, "led": led, "buzzer": buzzer}
 
     @property
     def info(self) -> dict[str, Any]:
@@ -83,6 +92,17 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     @property
     def led(self) -> dict[str, Any]:
         return self.data.get("led", {}) if self.data else {}
+
+    @property
+    def buzzer(self) -> dict[str, Any]:
+        """Hub buzzer config (rx-v2.8.4+). Empty dict when unavailable —
+        entities should self-mark as unavailable in that case."""
+        return self.data.get("buzzer", {}) if self.data else {}
+
+    @property
+    def buzzer_available(self) -> bool:
+        """True when the hub responded to /api/v1/hub/buzzer (rx-v2.8.4+)."""
+        return bool(self.buzzer)
 
     @property
     def ws_connected(self) -> bool:

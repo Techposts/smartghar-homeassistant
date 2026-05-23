@@ -2,36 +2,46 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
-## v0.8.0 (planned) — MAC-anchored identity + migration hook + buzzer entities
+## v0.8.0 — Buzzer alerts + sensor health binary sensors
 
-Aligns the integration with the hub-side pair identity redesign that shipped in **rx-v2.7.10 / tx-v2.0.11 / rx-v2.7.11** (cloud repo, 2026-05-20+21) and brings the new buzzer-alerts feature (rx-v2.8.0, RX local web UI + PWA already ship buzzer controls) into HA. See the full hub-side rationale in [`PAIRING_IDENTITY.md`](https://github.com/Techposts/tanksync-cloud/blob/main/cloud/docs/PAIRING_IDENTITY.md) (private repo).
+Closes the three-surface-parity gap for the buzzer feature shipped on RX firmware in rx-v2.8.0 (May 2026). HA users can now toggle the hub's audible alerts, change the volume profile, and preview alert patterns directly from Home Assistant — same controls the PWA and the hub's own local web UI already had.
 
-### Why this release matters
+Also adds two long-overdue per-tank binary sensors for sensor health: `sensor_error` (the ultrasonic sensor failed to echo) and `sensor_stuck` (the ultrasonic sensor returns a constant reading regardless of actual water level — typical of a defective JSN-SR04M unit). These give automations a clean signal to surface unhealthy sensors instead of trusting a stuck reading.
 
-Two themes:
-1. **TX MAC** is the new stable identity. The hub now exposes a stable **TX MAC address** in `/api/v1/devices` responses (12-char lowercase hex, empty string for entries paired with pre-v2.0.11 TX firmware). MAC is immutable across re-pairs, hub firmware upgrades, and address reassignment. This integration should anchor `unique_id` on MAC for proper history continuity.
-2. **Audible alerts** — the hub now has a physical buzzer that beeps on boot, critical-low water, overflow at fill-completion, sensor offline, and a handful of opt-in events. Local web UI + PWA already control it; HACS gets full parity here.
+Requires hub firmware **rx-v2.8.4+** on the buzzer side. Older firmware silently lacks the `/api/v1/hub/buzzer` endpoint and the buzzer entities will not register (no permanent-unavailable clutter — the integration simply skips them). Sensor_error works from rx-v2.8.0+; sensor_stuck from rx-v2.8.3+.
 
-### Planned changes — identity / migration
+### Added — buzzer
 
-- **`async_migrate_entry`** hook in `config_flow.py` — detects firmware version change and logs an upgrade warning if existing tanks would re-key
-- **`device_info.py::_subdevice_identifier()`** — fallback chain: `dev.get("mac")` first, then `device["id"]` for legacy entries
-- **Coordinator entity cleanup** — when a device disappears from `/api/v1/devices` (deleted on the hub via PWA or Web UI), unregister the entities from HA instead of leaving them `unavailable` forever
-- **Optional: "Unpair tank" button** — calls the cloud's `DELETE /api/devices/:id` (which now propagates to the hub via MQTT `remove_tx` in cloud release 2026-05-21)
+- **`switch.smartghar_<hub>_buzzer_alerts`** (CONFIG category) — master mute. Off silences every alert except the boot tone (which always plays on power-up — that's intentional and matches the local web UI behavior).
+- **`select.smartghar_<hub>_buzzer_volume`** (CONFIG category) — global profile Quiet / Standard / Loud. Applies uniformly to every alert. Per-alert profiles are not exposed by design; per-alert enables live on the hub local web UI under "Advanced" for users who want that granularity.
+- **`smartghar.test_buzzer` service** — `{entity_id, event, profile?}`. Plays a single alert pattern bypassing master_enable and quiet hours. Useful for "does the buzzer work" smoke tests + confirming volume choice. Event values map to the firmware `buzzer_event_t` enum (4 = Test, 1 = Critical low, 2 = Overflow, 3 = Sensor offline, 6 = Pair success, 7 = OTA success, 8 = OTA failure).
 
-### Planned changes — buzzer alerts (RX 2.8.0+)
+### Added — sensor health binary sensors
 
-- **`switch.tanksync_buzzer_enabled`** — master mute toggle, mirrors hub local web UI master_enable
-- **Per-alert `switch` entities** — one per essential alert (critical-low, overflow, sensor-offline) + optional alerts behind diagnostic category (refill, drain, etc.)
-- **`select.tanksync_buzzer_volume`** — Quiet / Standard / Loud (mirrors the global profile)
-- **`tanksync.test_buzzer` service** — `{tank: entity_id, event: "critical_low" | "overflow" | ...}` to preview alert patterns
-- **Quiet-hours `number` entities** — start/end hours as configurable HA numbers (optional, may defer)
+- **`binary_sensor.smartghar_<hub>_tank_<n>_sensor_not_responding`** (PROBLEM device class, DIAGNOSTIC category) — true when the TX is alive but the ultrasonic sensor failed to echo on the last read. The level reading shown is the prior good value, not current.
+- **`binary_sensor.smartghar_<hub>_tank_<n>_sensor_stuck`** (PROBLEM device class, DIAGNOSTIC category) — true when the sensor has reported a constant value across 20 wake cycles regardless of actual water level. Symptom of a defective ultrasonic module. Different from `sensor_not_responding`: there the read failed; here it returns plausible but meaningless data.
 
-### Migration story (for users)
+### Architecture
 
-If you upgrade hub firmware to rx-v2.7.10+ and re-pair existing tanks **with TX firmware ≥ 2.0.11**, the new pairing assigns a small-int address (e.g. 1, 2, 3…) replacing the old random 16-bit. To preserve HA entity history across the transition: don't delete the integration; we ship a migration hook in this release.
+- `coordinator._async_update_data()` now also fetches `/api/v1/hub/buzzer` each 30s tick. Returns empty dict on older firmware → switch + select skip registration.
+- `api.py` gains `get_buzzer / put_buzzer / test_buzzer` methods backed by the `/api/v1/hub/buzzer` REST surface added in rx-v2.8.4.
+- `binary_sensor.py` reads `state.sensor_error` / `state.sensor_stuck` from each device's payload in `/api/v1/devices` — already exposed by the hub.
 
-The buzzer feature requires rx-v2.8.0+ on the hub. Older firmware silently lacks the `/api/buzzer` endpoint and the entities will report `unavailable` until you OTA-update.
+### Deferred to a future release
+
+- **MAC-anchored `unique_id` + `async_migrate_entry`** — punted to v0.8.1. Renaming live unique_ids without a careful migration breaks existing HA entity history (entity_id derives from unique_id), so it deserves a release on its own with proper migration paths for users on rx-v2.7.10+ (MAC available) and pre-v2.7.10 (legacy numeric id).
+- **Coordinator entity cleanup** when a device disappears from `/api/v1/devices` — also v0.8.1.
+- **Optional "Unpair tank" button** — useful but not on the critical path.
+
+### Upgrade notes
+
+- No config migration. Existing entities preserve their `unique_id` and history.
+- Buzzer entities register only when the hub responds to `/api/v1/hub/buzzer` (rx-v2.8.4+). OTA-update the hub first if you want the buzzer controls in HA.
+- Sensor health binary sensors register for every tank regardless of firmware version. Pre-v2.8.0 firmware doesn't emit the field, so they read as `Off` permanently — no false positives.
+
+## v0.8.0 plan archive (planned items moved out — see "Deferred" above)
+
+The original v0.8.0 plan included MAC-anchored identity work. After scoping, that work moved to v0.8.1 because safe migration of existing unique_ids needs its own focused release with `async_migrate_entry`. v0.8.0 shipped the smaller, lower-risk subset: buzzer entities + sensor health.
 
 ## v0.7.3 — Platform setup hotfix
 

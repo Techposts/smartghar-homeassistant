@@ -142,6 +142,28 @@ class SmartGharHubClient:
         """Update hub LED config (partial update)."""
         return await self._put("/api/v1/hub/led", fields)
 
+    async def get_buzzer(self) -> dict[str, Any]:
+        """Hub buzzer config (rx-v2.8.4+) — master_enable, master_profile,
+        quiet hours, critical_overrides_quiet, per-alert enabled flags.
+        Returns 404-ish error on older firmware that lacks the endpoint;
+        callers should treat that as "buzzer unavailable" rather than error."""
+        return await self._get("/api/v1/hub/buzzer")
+
+    async def put_buzzer(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Update hub buzzer config (partial update). Whitelisted server-side;
+        unknown fields are dropped silently."""
+        return await self._put("/api/v1/hub/buzzer", fields)
+
+    async def test_buzzer(self, event: int, profile: int | None = None) -> None:
+        """Preview a buzzer alert pattern. Bypasses master_enable + quiet
+        hours on the firmware side (it's a preview, not a real alert).
+        `event` is the buzzer_event_t value (0-13); `profile` overrides the
+        current master_profile for this one preview (0=Quiet/1=Standard/2=Loud)."""
+        payload: dict[str, Any] = {"event": event}
+        if profile is not None:
+            payload["profile"] = profile
+        await self._post("/api/v1/hub/buzzer/test", payload)
+
     async def trigger_ota_check(self) -> None:
         """Trigger an OTA manifest fetch. Hub responds immediately; check
         runs in background."""

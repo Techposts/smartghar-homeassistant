@@ -12,7 +12,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
@@ -30,6 +30,12 @@ REFILL_MARKER_SCHEMA = vol.Schema({
     vol.Optional("note"): cv.string,
 })
 
+TEST_BUZZER_SCHEMA = vol.Schema({
+    vol.Required("entity_id"): cv.entity_id,
+    vol.Required("event"): vol.All(vol.Coerce(int), vol.Range(min=0, max=13)),
+    vol.Optional("profile"): vol.All(vol.Coerce(int), vol.Range(min=0, max=2)),
+})
+
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
@@ -37,6 +43,8 @@ PLATFORMS: list[Platform] = [
     Platform.TEXT,
     Platform.BUTTON,
     Platform.EVENT,
+    Platform.SWITCH,
+    Platform.SELECT,
     Platform.UPDATE,
 ]
 
@@ -68,6 +76,64 @@ async def _async_register_services(hass: HomeAssistant) -> None:
 
     hass.services.async_register(
         DOMAIN, "refill_marker", _refill_marker, schema=REFILL_MARKER_SCHEMA
+    )
+
+    async def _test_buzzer(call: ServiceCall) -> None:
+        """Preview a buzzer alert pattern on the hub that owns `entity_id`.
+
+        Resolves entity_id → device → SmartGhar hub_id via the device
+        registry, then dispatches to that hub's coordinator client.
+        Bypasses master_enable + quiet hours on the firmware side (preview
+        intent, not a real alert).
+        """
+        entity_id = call.data["entity_id"]
+        event = call.data["event"]
+        profile = call.data.get("profile")
+
+        ent_reg = er.async_get(hass)
+        dev_reg = dr.async_get(hass)
+        entity_entry = ent_reg.async_get(entity_id)
+        if entity_entry is None or entity_entry.device_id is None:
+            _LOGGER.warning("test_buzzer: entity %s not found / has no device", entity_id)
+            return
+        device_entry = dev_reg.async_get(entity_entry.device_id)
+        if device_entry is None:
+            _LOGGER.warning("test_buzzer: device for %s not found", entity_id)
+            return
+
+        # Walk the integration's coordinators and match by hub_id derived
+        # from the device's identifiers. Sub-device identifiers carry the
+        # hub_id prefix (see device_info._subdevice_identifier).
+        target_coordinator: SmartGharCoordinator | None = None
+        for coord in (hass.data.get(DOMAIN) or {}).values():
+            if not isinstance(coord, SmartGharCoordinator):
+                continue
+            for domain, ident in device_entry.identifiers:
+                if domain != DOMAIN:
+                    continue
+                # Hub-level identifier is exactly hub_id; sub-device
+                # identifier starts with "<hub_id>_". Either matches.
+                if ident == coord.hub_id or ident.startswith(coord.hub_id + "_"):
+                    target_coordinator = coord
+                    break
+            if target_coordinator:
+                break
+
+        if target_coordinator is None:
+            _LOGGER.warning("test_buzzer: no SmartGhar hub owns entity %s", entity_id)
+            return
+
+        try:
+            await target_coordinator.client.test_buzzer(event=event, profile=profile)
+            _LOGGER.info(
+                "test_buzzer: event=%d profile=%s on hub %s",
+                event, profile, target_coordinator.hub_id,
+            )
+        except Exception as err:  # noqa: BLE001 — surface to user via log
+            _LOGGER.error("test_buzzer: hub %s rejected: %s", target_coordinator.hub_id, err)
+
+    hass.services.async_register(
+        DOMAIN, "test_buzzer", _test_buzzer, schema=TEST_BUZZER_SCHEMA
     )
 
 

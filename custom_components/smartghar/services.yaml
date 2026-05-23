@@ -59,3 +59,64 @@ refill_marker:
       required: false
       selector:
         text:
+
+test_buzzer:
+  name: Test buzzer sound
+  description: >
+    Preview a buzzer alert pattern on a SmartGhar hub (rx-v2.8.4+).
+    Useful for confirming the buzzer is wired correctly, checking the
+    volume profile sounds right, or demonstrating which alert
+    corresponds to which condition. Bypasses master_enable + quiet
+    hours on the firmware side — it's a preview, not a real alert.
+  fields:
+    entity_id:
+      name: Hub or tank entity
+      description: >
+        Any entity belonging to the SmartGhar hub whose buzzer you
+        want to test. The integration resolves the hub via the
+        device registry. Easiest pick: the hub's own
+        `switch.<hub>_buzzer_enabled` or any tank-level sensor.
+      required: true
+      selector:
+        entity:
+          integration: smartghar
+    event:
+      name: Alert pattern
+      description: Which alert pattern to play (matches buzzer_event_t in firmware).
+      required: true
+      example: 4
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - label: Test button (short double-beep)
+              value: '4'
+            - label: Critical low (<5%)
+              value: '1'
+            - label: Overflow (>95%)
+              value: '2'
+            - label: Sensor offline
+              value: '3'
+            - label: Pair success
+              value: '6'
+            - label: OTA success
+              value: '7'
+            - label: OTA failure
+              value: '8'
+    profile:
+      name: Volume profile (override)
+      description: >
+        Optional — preview a different loudness without changing the
+        hub's current Volume setting. Leave empty to use the
+        configured profile.
+      required: false
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - label: Quiet
+              value: '0'
+            - label: Standard
+              value: '1'
+            - label: Loud
+              value: '2'
