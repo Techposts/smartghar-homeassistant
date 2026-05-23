@@ -4,7 +4,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)](CHANGELOG.md)
 
 Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring) and **[AmbiSense](https://github.com/Techposts/AmbiSense)** (radar presence + LED follow-me lighting), with **PowerSync** (energy), **RidgeSync** (fingerprint locks), and other products on the roadmap. One integration, every Techposts device on your network auto-discovers.
 
@@ -36,7 +36,7 @@ Most consumer IoT integrations require a vendor cloud account, OAuth dance, and 
 
 For details + troubleshooting, see the **[Installation page in the wiki →](https://github.com/Techposts/smartghar-homeassistant/wiki/Installation)**.
 
-## Status (v0.7.0)
+## Status (v0.8.0)
 
 ### TankSync
 - Real-time push via WebSocket against hub firmware **rx-v2.7.0+**
@@ -46,8 +46,10 @@ For details + troubleshooting, see the **[Installation page in the wiki →](htt
 - HA-native `update` entity for firmware OTA
 - 2 automation blueprints (low-water-alert, refill-confirmation) — install in one click
 - `smartghar.refill_marker` service for manual fill logging
+- **NEW v0.8.0 — Buzzer alerts** (requires hub firmware **rx-v2.8.4+**): `switch.<hub>_buzzer_alerts` master enable, `select.<hub>_buzzer_volume` (Quiet / Standard / Loud), `smartghar.test_buzzer` service for previewing alert patterns
+- **NEW v0.8.0 — Sensor health binary sensors** (per tank, diagnostic): `binary_sensor.<hub>_tank_<n>_sensor_not_responding` (rx-v2.8.0+) and `binary_sensor.<hub>_tank_<n>_sensor_stuck` (rx-v2.8.3+) — clean automation surfaces for unhealthy ultrasonic sensors
 
-### AmbiSense (new in v0.7.0)
+### AmbiSense (added v0.7.0)
 - Auto-discovery against AmbiSense firmware **v6.2.0-alpha.2+**
 - `binary_sensor: occupancy` with stationary, target_count, nearest_cm, seconds_since_seen as attributes
 - `sensor: distance` (cm), `target_count`, `seconds_since_seen` (diagnostic), `rssi_dbm` (diagnostic)

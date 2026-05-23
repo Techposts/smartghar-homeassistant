@@ -14,6 +14,8 @@ Local-first Home Assistant integration for the SmartGhar IoT product family — 
 
 ## Status
 
-Pre-alpha. The integration scaffold is in place; functional v0.1.0 ships alongside hub firmware **rx-v2.8.0** which exposes the local API.
+**v0.8.0** — stable feature surface. Real-time WebSocket push, bidirectional configuration (rename, capacity, LED, OTA, identify, reboot), Energy dashboard cumulative consumption, per-tank sensor-health binary sensors (`sensor_not_responding`, `sensor_stuck`), hub buzzer master switch + volume select + `test_buzzer` service. AmbiSense radar-presence support included.
 
-See [the README on GitHub](https://github.com/Techposts/smartghar-homeassistant) for details and roadmap.
+Requires hub firmware **rx-v2.7.0+** for the core integration; buzzer entities require **rx-v2.8.4+**.
+
+See [the README](https://github.com/Techposts/smartghar-homeassistant) and the **[Wiki](https://github.com/Techposts/smartghar-homeassistant/wiki)** for installation, entity reference, and troubleshooting.
