@@ -2,24 +2,36 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
-## v0.8.0 (planned) — MAC-anchored identity + migration hook + entity cleanup
+## v0.8.0 (planned) — MAC-anchored identity + migration hook + buzzer entities
 
-Aligns the integration with the hub-side pair identity redesign that shipped in **rx-v2.7.10 / tx-v2.0.11 / rx-v2.7.11** (cloud repo, 2026-05-20+21). See the full hub-side rationale in [`PAIRING_IDENTITY.md`](https://github.com/Techposts/tanksync-cloud/blob/main/cloud/docs/PAIRING_IDENTITY.md) (private repo).
+Aligns the integration with the hub-side pair identity redesign that shipped in **rx-v2.7.10 / tx-v2.0.11 / rx-v2.7.11** (cloud repo, 2026-05-20+21) and brings the new buzzer-alerts feature (rx-v2.8.0, RX local web UI + PWA already ship buzzer controls) into HA. See the full hub-side rationale in [`PAIRING_IDENTITY.md`](https://github.com/Techposts/tanksync-cloud/blob/main/cloud/docs/PAIRING_IDENTITY.md) (private repo).
 
 ### Why this release matters
 
-The hub now exposes a stable **TX MAC address** in `/api/v1/devices` responses (12-char lowercase hex, empty string for entries paired with pre-v2.0.11 TX firmware). MAC is immutable across re-pairs, hub firmware upgrades, and address reassignment. This integration should anchor `unique_id` on MAC for proper history continuity.
+Two themes:
+1. **TX MAC** is the new stable identity. The hub now exposes a stable **TX MAC address** in `/api/v1/devices` responses (12-char lowercase hex, empty string for entries paired with pre-v2.0.11 TX firmware). MAC is immutable across re-pairs, hub firmware upgrades, and address reassignment. This integration should anchor `unique_id` on MAC for proper history continuity.
+2. **Audible alerts** — the hub now has a physical buzzer that beeps on boot, critical-low water, overflow at fill-completion, sensor offline, and a handful of opt-in events. Local web UI + PWA already control it; HACS gets full parity here.
 
-### Planned changes
+### Planned changes — identity / migration
 
 - **`async_migrate_entry`** hook in `config_flow.py` — detects firmware version change and logs an upgrade warning if existing tanks would re-key
 - **`device_info.py::_subdevice_identifier()`** — fallback chain: `dev.get("mac")` first, then `device["id"]` for legacy entries
 - **Coordinator entity cleanup** — when a device disappears from `/api/v1/devices` (deleted on the hub via PWA or Web UI), unregister the entities from HA instead of leaving them `unavailable` forever
 - **Optional: "Unpair tank" button** — calls the cloud's `DELETE /api/devices/:id` (which now propagates to the hub via MQTT `remove_tx` in cloud release 2026-05-21)
 
+### Planned changes — buzzer alerts (RX 2.8.0+)
+
+- **`switch.tanksync_buzzer_enabled`** — master mute toggle, mirrors hub local web UI master_enable
+- **Per-alert `switch` entities** — one per essential alert (critical-low, overflow, sensor-offline) + optional alerts behind diagnostic category (refill, drain, etc.)
+- **`select.tanksync_buzzer_volume`** — Quiet / Standard / Loud (mirrors the global profile)
+- **`tanksync.test_buzzer` service** — `{tank: entity_id, event: "critical_low" | "overflow" | ...}` to preview alert patterns
+- **Quiet-hours `number` entities** — start/end hours as configurable HA numbers (optional, may defer)
+
 ### Migration story (for users)
 
 If you upgrade hub firmware to rx-v2.7.10+ and re-pair existing tanks **with TX firmware ≥ 2.0.11**, the new pairing assigns a small-int address (e.g. 1, 2, 3…) replacing the old random 16-bit. To preserve HA entity history across the transition: don't delete the integration; we ship a migration hook in this release.
+
+The buzzer feature requires rx-v2.8.0+ on the hub. Older firmware silently lacks the `/api/buzzer` endpoint and the entities will report `unavailable` until you OTA-update.
 
 ## v0.7.3 — Platform setup hotfix
 
