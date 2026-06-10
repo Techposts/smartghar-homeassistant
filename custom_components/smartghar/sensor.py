@@ -103,6 +103,15 @@ TANK_SENSORS: tuple[SensorEntityDescription, ...] = (
         translation_key="tank_state",
         icon="mdi:lan-connect",
     ),
+    # Power source: "mains" (TX on external 5V / USB, no battery — INA219 reports
+    # the battery_pct=-1 sentinel, or a monitor-less mains SKU) vs "solar"
+    # (battery/solar rig). Lets HA show the source and avoids treating a mains
+    # tank's absent battery as a flat one. Hub exposes it flat at state.power_source.
+    SensorEntityDescription(
+        key="power_source",
+        translation_key="tank_power_source",
+        icon="mdi:power-plug",
+    ),
 )
 
 # AmbiSense presence sensor — one set of entities per presence device.
@@ -396,9 +405,23 @@ class SmartGharTankConsumption(CoordinatorEntity[SmartGharCoordinator], RestoreS
             super()._handle_coordinator_update()
             return
 
-        level = (dev.get("state") or {}).get("level_pct")
+        state = dev.get("state") or {}
+        level = state.get("level_pct")
         capacity_l = (dev.get("config") or {}).get("capacity_l")
         if level is None or capacity_l is None:
+            super()._handle_coordinator_update()
+            return
+
+        # Hub-restart guard: a hub that just rebooted reports the tank as
+        # 'waiting' (no TANK packet this boot) and pre-3.x firmware sends
+        # level_pct=0 alongside it. Counting that as a drain added a phantom
+        # full-tank consumption per hub restart (observed: ~1080 L per reboot
+        # on a 2000 L tank). Keep the baseline untouched — when the TX reports
+        # again, real usage across the outage is still counted against the
+        # pre-restart baseline. Unknown/missing conn_state (older firmware)
+        # keeps the legacy behaviour.
+        conn = state.get("conn_state")
+        if conn is not None and conn not in ("online", "stale"):
             super()._handle_coordinator_update()
             return
 
