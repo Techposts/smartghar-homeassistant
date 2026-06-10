@@ -41,10 +41,18 @@ from .const import (
     MODEL_PRESENCE,
     MODEL_TANK,
 )
+from homeassistant.util import dt as dt_util
+
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info
 
 _LOGGER = logging.getLogger(__name__)
+
+# A tank reading older than this (and not actively online) is "stale": the TX
+# hasn't reported recently, so the level shown is a last-known value, not live.
+# 20 min comfortably exceeds the default 5-min TX wake interval plus a couple of
+# missed cycles, so a healthy slow-reporting tank isn't flagged.
+TANK_STALE_AFTER_S = 20 * 60
 
 
 # ─── Sensor descriptions ──────────────────────────────────────────────────────
@@ -269,6 +277,34 @@ class SmartGharTankSensor(_SmartGharBase):
         if not dev:
             return None
         return (dev.get("state") or {}).get(self.entity_description.key)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        # Only the primary level reading carries freshness metadata. The hub's
+        # `state.ts` is the epoch second the TX last reported; surface its age and
+        # a `stale` flag so dashboards/automations can tell a live reading from a
+        # last-known one WITHOUT the value being blanked (we keep showing the last
+        # level, per the product's "show last value + when" behaviour). conn_state
+        # offline/lost is treated as stale regardless of age.
+        if self.entity_description.key != "level_pct":
+            return None
+        dev = self.coordinator.device_by_id(self._tank_id)
+        if not dev:
+            return None
+        state = dev.get("state") or {}
+        ts = state.get("ts")
+        conn = state.get("conn_state")
+        attrs: dict[str, Any] = {}
+        age_s: int | None = None
+        if isinstance(ts, (int, float)) and ts > 0:
+            age_s = max(0, int(dt_util.utcnow().timestamp() - ts))
+            attrs["last_reading"] = dt_util.utc_from_timestamp(ts).isoformat()
+            attrs["reading_age_s"] = age_s
+        stale = conn in ("offline", "lost") or (
+            age_s is not None and age_s > TANK_STALE_AFTER_S
+        )
+        attrs["stale"] = stale
+        return attrs
 
     @property
     def available(self) -> bool:
