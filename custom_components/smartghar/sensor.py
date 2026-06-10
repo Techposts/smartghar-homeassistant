@@ -31,6 +31,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -195,6 +196,14 @@ async def async_setup_entry(
         entities.append(SmartGharTankWaterVolume(coordinator, dev["id"]))
         # Cumulative consumption sensor — drives HA's Energy dashboard.
         entities.append(SmartGharTankConsumption(coordinator, dev["id"]))
+
+    # Entity service: smartghar.reset_consumption — zero a tank's cumulative
+    # consumption total (target the consumption sensor entity). Registered once
+    # per platform setup; idempotent.
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        "reset_consumption", {}, "async_reset_consumption"
+    )
 
     # Presence sensors — one set per AmbiSense unit (kind="presence").
     # The occupancy binary_sensor lives in binary_sensor.py; these are
@@ -433,6 +442,19 @@ class SmartGharTankConsumption(CoordinatorEntity[SmartGharCoordinator], RestoreS
             level = (dev.get("state") or {}).get("level_pct")
             if level is not None:
                 self._baseline_pct = float(level)
+
+    async def async_reset_consumption(self) -> None:
+        """Zero the running total. Exposed as the `smartghar.reset_consumption`
+        entity service so a poisoned total (e.g. phantom drains accumulated by an
+        older firmware before the restart guard landed) can be cleared without
+        removing the entity. Re-seeds the baseline from the current level so the
+        reset itself isn't counted as a drain."""
+        self._total_l = 0.0
+        dev = self.coordinator.device_by_id(self._tank_id)
+        level = (dev.get("state") or {}).get("level_pct") if dev else None
+        self._baseline_pct = float(level) if level is not None else None
+        self.async_write_ha_state()
+        _LOGGER.info("Reset water consumption total for tank %s", self._tank_id)
 
     @callback
     def _handle_coordinator_update(self) -> None:

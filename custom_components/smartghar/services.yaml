@@ -60,6 +60,19 @@ refill_marker:
       selector:
         text:
 
+reset_consumption:
+  name: Reset water consumption total
+  description: >
+    Zero a tank's cumulative water-consumption total. Use this to clear a
+    poisoned total — e.g. phantom drains that accumulated from hub restarts on
+    firmware before the restart guard landed. The baseline is re-seeded from the
+    current level, so the reset itself isn't counted as usage.
+  target:
+    entity:
+      integration: smartghar
+      device_class: water
+  fields: {}
+
 test_buzzer:
   name: Test buzzer sound
   description: >
