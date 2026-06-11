@@ -2,6 +2,13 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## v0.8.1 — Power source, accurate consumption, reading freshness
+
+- **Power Source sensor** (solar / mains) per tank. A mains/USB transmitter has no battery, so the hub reports it as such; HA now surfaces the source and no longer treats an absent battery as a flat one.
+- **Consumption fix** — a hub restart used to count as a full-tank drain, adding phantom litres to the water-consumption total on every reboot. Consumption now only accumulates from genuine live readings, so the total stays honest across power cuts and restarts.
+- **New `smartghar.reset_consumption` service** — zero a tank's consumption total (e.g. to clear a previously-inflated number) without removing the entity. Re-seeds the baseline from the current level so the reset itself isn't counted.
+- **Reading freshness** — the tank level sensor now exposes `last_reading`, `reading_age_s`, and a `stale` attribute, so dashboards and automations can tell a live reading from a last-known one. The value isn't blanked when stale — you still see the last level, plus when it was read.
+
 ## v0.8.0 — Buzzer alerts + sensor health binary sensors
 
 Closes the three-surface-parity gap for the buzzer feature shipped on RX firmware in rx-v2.8.0 (May 2026). HA users can now toggle the hub's audible alerts, change the volume profile, and preview alert patterns directly from Home Assistant — same controls the PWA and the hub's own local web UI already had.
