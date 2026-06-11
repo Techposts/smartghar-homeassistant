@@ -1,5 +1,7 @@
-"""Binary sensor entities — OTA availability + presence occupancy."""
+"""Binary sensor entities — OTA availability + presence occupancy + switch faults."""
 from __future__ import annotations
+
+from typing import Any
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -14,7 +16,15 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DEVICE_KIND_PRESENCE, DEVICE_KIND_TANK, DOMAIN, MODEL_PRESENCE, MODEL_TANK
 from .coordinator import SmartGharCoordinator
-from .device_info import hub_device_info, subdevice_device_info
+from .device_info import hub_device_info, subdevice_device_info, switch_device_info
+
+# Smart Switch fault bits (matches sw_fault in hub firmware): (key, bit, icon).
+SWITCH_FAULTS: tuple[tuple[str, int, str], ...] = (
+    ("overcurrent", 0x01, "mdi:flash-alert"),
+    ("overtemp", 0x02, "mdi:thermometer-alert"),
+    ("welded", 0x04, "mdi:alert-octagon"),
+    ("dryrun", 0x08, "mdi:water-off"),
+)
 
 
 async def async_setup_entry(
@@ -38,6 +48,12 @@ async def async_setup_entry(
             # firmware returns absent fields which collapse to None / Off.
             entities.append(SmartGharTankSensorError(coordinator, dev["id"]))
             entities.append(SmartGharTankSensorStuck(coordinator, dev["id"]))
+    # Smart Switch fault sensors — one PROBLEM binary sensor per fault bit.
+    for sw in coordinator.switches:
+        if "address" not in sw:
+            continue
+        for key, bit, icon in SWITCH_FAULTS:
+            entities.append(SmartGharSwitchFault(coordinator, sw["address"], key, bit, icon))
     async_add_entities(entities)
 
 
@@ -218,3 +234,49 @@ class SmartGharTankSensorStuck(_TankBinaryBase):
     _attr_icon = "mdi:ruler-square"
     _state_key = "sensor_stuck"
     _suffix = "sensor_stuck"
+
+
+class SmartGharSwitchFault(
+    CoordinatorEntity[SmartGharCoordinator], BinarySensorEntity
+):
+    """One fault flag on a Smart Switch (over-current / over-temp / welded /
+    dry-run). On when the corresponding bit is set in the switch's fault byte.
+    """
+
+    _attr_has_entity_name = True
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: SmartGharCoordinator,
+        addr: int,
+        key: str,
+        bit: int,
+        icon: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._addr = addr
+        self._bit = bit
+        self._attr_icon = icon
+        self._attr_translation_key = f"switch_fault_{key}"
+        self._attr_unique_id = f"smartghar_{coordinator.hub_id}_switch_{addr}_fault_{key}"
+
+    @property
+    def _sw(self) -> dict[str, Any] | None:
+        return self.coordinator.switch_by_addr(self._addr)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        sw = self._sw or {}
+        return switch_device_info(self.coordinator, self._addr, sw.get("name"))
+
+    @property
+    def available(self) -> bool:
+        sw = self._sw
+        return super().available and sw is not None and sw.get("state") != "waiting"
+
+    @property
+    def is_on(self) -> bool:
+        sw = self._sw
+        return bool(sw and (int(sw.get("fault", 0)) & self._bit))

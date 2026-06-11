@@ -67,6 +67,15 @@
       },
       "presence_rssi": {
         "name": "Radar Wi-Fi signal"
+      },
+      "switch_current": {
+        "name": "Current"
+      },
+      "switch_power": {
+        "name": "Power"
+      },
+      "switch_temperature": {
+        "name": "Temperature"
       }
     },
     "text": {
@@ -100,6 +109,9 @@
       },
       "reboot": {
         "name": "Reboot hub"
+      },
+      "switch_resume_auto": {
+        "name": "Resume automation"
       }
     },
     "binary_sensor": {
@@ -114,6 +126,18 @@
       },
       "sensor_stuck": {
         "name": "Sensor stuck"
+      },
+      "switch_fault_overcurrent": {
+        "name": "Over-current"
+      },
+      "switch_fault_overtemp": {
+        "name": "Over-temperature"
+      },
+      "switch_fault_welded": {
+        "name": "Welded contact"
+      },
+      "switch_fault_dryrun": {
+        "name": "Dry-run"
       }
     },
     "switch": {

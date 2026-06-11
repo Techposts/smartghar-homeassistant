@@ -21,7 +21,13 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from .const import DOMAIN, MANUFACTURER, hub_model_for_product
+from .const import (
+    DEVICE_KIND_SWITCH,
+    DOMAIN,
+    MANUFACTURER,
+    MODEL_SWITCH,
+    hub_model_for_product,
+)
 
 if TYPE_CHECKING:
     from .coordinator import SmartGharCoordinator
@@ -81,6 +87,23 @@ def subdevice_device_info(
         manufacturer=MANUFACTURER,
         model=sub_model,
         name=dev.get("name") or fallback_name,
+    )
+
+
+def switch_device_info(
+    coordinator: SmartGharCoordinator, addr: int, name: str | None
+) -> DeviceInfo:
+    """DeviceInfo for a Smart Switch sub-device (keyed by address).
+
+    Switches come from /api/switches, not the tank device list, so they get
+    their own helper that adapts the (addr, name) shape onto the shared
+    sub-device builder with kind="switch".
+    """
+    return subdevice_device_info(
+        coordinator,
+        {"id": addr, "name": name, "kind": DEVICE_KIND_SWITCH},
+        sub_model=MODEL_SWITCH,
+        fallback_name=f"Smart Switch {addr}",
     )
 
 

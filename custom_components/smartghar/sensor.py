@@ -24,8 +24,11 @@ from homeassistant.const import (
     PERCENTAGE,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
+    UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfLength,
+    UnitOfPower,
+    UnitOfTemperature,
     UnitOfTime,
     UnitOfVolume,
 )
@@ -45,7 +48,7 @@ from .const import (
 from homeassistant.util import dt as dt_util
 
 from .coordinator import SmartGharCoordinator
-from .device_info import hub_device_info, subdevice_device_info
+from .device_info import hub_device_info, subdevice_device_info, switch_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -169,6 +172,53 @@ PRESENCE_SENSORS: tuple[SensorEntityDescription, ...] = (
 COMPUTED_TANK_SENSORS = ("water_volume_l",)
 
 
+# Smart Switch telemetry sensors. The (description, source_field, scale) tuples
+# map a raw /api/switches integer onto its SI unit: load_ma → A (×0.001),
+# power_w → W (×1), temp_c10 → °C (×0.1).
+SWITCH_SENSORS: tuple[tuple[SensorEntityDescription, str, float], ...] = (
+    (
+        SensorEntityDescription(
+            key="current",
+            translation_key="switch_current",
+            native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+            device_class=SensorDeviceClass.CURRENT,
+            state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=2,
+            icon="mdi:current-ac",
+        ),
+        "load_ma",
+        0.001,
+    ),
+    (
+        SensorEntityDescription(
+            key="power",
+            translation_key="switch_power",
+            native_unit_of_measurement=UnitOfPower.WATT,
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=0,
+            icon="mdi:flash",
+        ),
+        "power_w",
+        1.0,
+    ),
+    (
+        SensorEntityDescription(
+            key="temperature",
+            translation_key="switch_temperature",
+            native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=1,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            icon="mdi:thermometer",
+        ),
+        "temp_c10",
+        0.1,
+    ),
+)
+
+
 # ─── Setup ────────────────────────────────────────────────────────────────────
 
 
@@ -213,6 +263,15 @@ async def async_setup_entry(
             continue
         for desc in PRESENCE_SENSORS:
             entities.append(SmartGharPresenceSensor(coordinator, desc, dev["id"]))
+
+    # Smart Switch telemetry — current, power, temperature per switch.
+    for sw in coordinator.switches:
+        if "address" not in sw:
+            continue
+        for desc, field, scale in SWITCH_SENSORS:
+            entities.append(
+                SmartGharSwitchSensor(coordinator, desc, sw["address"], field, scale)
+            )
 
     async_add_entities(entities)
 
@@ -561,3 +620,56 @@ class SmartGharTankWaterVolume(CoordinatorEntity[SmartGharCoordinator], SensorEn
     @property
     def available(self) -> bool:
         return super().available and self.coordinator.device_by_id(self._tank_id) is not None
+
+
+class SmartGharSwitchSensor(
+    CoordinatorEntity[SmartGharCoordinator], SensorEntity
+):
+    """One telemetry sensor (current / power / temperature) on a Smart Switch.
+
+    Reads a raw integer field from /api/switches and scales it to SI units.
+    Unavailable while the switch is "waiting" (paired but no telemetry yet).
+    """
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: SmartGharCoordinator,
+        description: SensorEntityDescription,
+        addr: int,
+        field: str,
+        scale: float,
+    ) -> None:
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._addr = addr
+        self._field = field
+        self._scale = scale
+        self._attr_unique_id = (
+            f"smartghar_{coordinator.hub_id}_switch_{addr}_{description.key}"
+        )
+
+    @property
+    def _sw(self) -> dict[str, Any] | None:
+        return self.coordinator.switch_by_addr(self._addr)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        sw = self._sw or {}
+        return switch_device_info(self.coordinator, self._addr, sw.get("name"))
+
+    @property
+    def available(self) -> bool:
+        sw = self._sw
+        return super().available and sw is not None and sw.get("state") != "waiting"
+
+    @property
+    def native_value(self) -> float | None:
+        sw = self._sw
+        if not sw or self._field not in sw:
+            return None
+        raw = sw.get(self._field)
+        if raw is None:
+            return None
+        return round(float(raw) * self._scale, 2)

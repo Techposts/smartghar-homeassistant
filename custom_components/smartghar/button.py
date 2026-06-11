@@ -15,7 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DEVICE_KIND_TANK, DOMAIN, MODEL_TANK
 from .coordinator import SmartGharCoordinator
-from .device_info import hub_device_info, subdevice_device_info
+from .device_info import hub_device_info, subdevice_device_info, switch_device_info
 
 
 async def async_setup_entry(
@@ -32,6 +32,10 @@ async def async_setup_entry(
     for dev in coordinator.devices:
         if dev.get("kind") == DEVICE_KIND_TANK:
             entities.append(SmartGharTankIdentify(coordinator, dev["id"]))
+    # Per Smart Switch — hand manual control back to the hub's pump rule.
+    for sw in coordinator.switches:
+        if "address" in sw:
+            entities.append(SmartGharSwitchResumeAuto(coordinator, sw["address"]))
     async_add_entities(entities)
 
 
@@ -143,3 +147,38 @@ class SmartGharTankIdentify(CoordinatorEntity[SmartGharCoordinator], ButtonEntit
 
     async def async_press(self) -> None:
         await self.coordinator.client.identify_device(self._tank_id)
+
+
+class SmartGharSwitchResumeAuto(CoordinatorEntity[SmartGharCoordinator], ButtonEntity):
+    """Resume the hub's pump automation for a Smart Switch.
+
+    Turning the switch on/off (in HA or the web UI) engages manual-hold, which
+    pauses the level-based pump rule. Pressing this clears the hold so the hub
+    takes over again.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "switch_resume_auto"
+    _attr_icon = "mdi:autorenew"
+
+    def __init__(self, coordinator: SmartGharCoordinator, addr: int) -> None:
+        super().__init__(coordinator)
+        self._addr = addr
+        self._attr_unique_id = f"smartghar_{coordinator.hub_id}_switch_{addr}_resume_auto"
+
+    @property
+    def _sw(self) -> dict[str, Any] | None:
+        return self.coordinator.switch_by_addr(self._addr)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        sw = self._sw or {}
+        return switch_device_info(self.coordinator, self._addr, sw.get("name"))
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._sw is not None
+
+    async def async_press(self) -> None:
+        await self.coordinator.client.resume_switch_auto(self._addr)
+        await self.coordinator.async_request_refresh()

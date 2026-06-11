@@ -79,7 +79,22 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except SmartGharApiError as err:
             _LOGGER.debug("Buzzer state unavailable on hub %s: %s", self.hub_id, err)
 
-        return {"info": info, "devices": devices, "led": led, "buzzer": buzzer}
+        # Smart Switches — separate endpoint from tanks. Absent on firmware that
+        # predates the feature; treat an API error as "no switches" so older
+        # hubs don't fail their whole refresh.
+        switches: list[dict[str, Any]] = []
+        try:
+            switches = await self.client.get_switches()
+        except SmartGharApiError as err:
+            _LOGGER.debug("Switches unavailable on hub %s: %s", self.hub_id, err)
+
+        return {
+            "info": info,
+            "devices": devices,
+            "led": led,
+            "buzzer": buzzer,
+            "switches": switches,
+        }
 
     @property
     def info(self) -> dict[str, Any]:
@@ -103,6 +118,17 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def buzzer_available(self) -> bool:
         """True when the hub responded to /api/v1/hub/buzzer (rx-v2.8.4+)."""
         return bool(self.buzzer)
+
+    @property
+    def switches(self) -> list[dict[str, Any]]:
+        """Paired Smart Switches (empty on firmware without the feature)."""
+        return self.data.get("switches", []) if self.data else []
+
+    def switch_by_addr(self, addr: int) -> dict[str, Any] | None:
+        for s in self.switches:
+            if s.get("address") == addr:
+                return s
+        return None
 
     @property
     def ws_connected(self) -> bool:

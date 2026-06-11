@@ -130,9 +130,49 @@ class SmartGharHubClient:
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             raise SmartGharCannotConnect(f"Could not reach {url}: {err}") from err
 
+    async def _post_query(self, path: str, params: dict[str, Any]) -> dict[str, Any] | None:
+        """POST with query-string params (no JSON body). The Smart Switch
+        endpoints read query params, not a body, so this builds the URL with
+        `with_query` rather than sending JSON."""
+        url = (self._base / path.lstrip("/")).with_query(params)
+        try:
+            async with self._session.post(
+                url, headers=self._headers(), timeout=self._timeout
+            ) as resp:
+                if resp.status == 401:
+                    raise SmartGharInvalidAuth(f"Token rejected: {url}")
+                if resp.status >= 400:
+                    text = await resp.text()
+                    raise SmartGharApiError(f"HTTP {resp.status} for POST {url}: {text[:200]}")
+                if resp.status == 204:
+                    return None
+                return await resp.json(content_type=None)
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            raise SmartGharCannotConnect(f"Could not reach {url}: {err}") from err
+
     async def update_device(self, device_id: int, fields: dict[str, Any]) -> dict[str, Any]:
         """Edit one or more device config fields. Maps to PUT /api/v1/devices/<id>."""
         return await self._put(f"/api/v1/devices/{device_id}", fields)
+
+    # ── Smart Switch (DEV_SWITCH) — polled separately from tanks ──────────────
+    async def get_switches(self) -> list[dict[str, Any]]:
+        """Paired Smart Switches with telemetry + pump rule. GET /api/switches.
+        Returns [] on firmware that predates the Smart Switch feature (the
+        coordinator treats an API error here as 'no switches')."""
+        data = await self._get("/api/switches")
+        return data.get("switches", [])
+
+    async def set_switch_relay(self, addr: int, on: bool) -> dict[str, Any] | None:
+        """Manually drive a switch's relay. Engages the hub's manual-hold so
+        automation pauses until resume_switch_auto(). POST /api/switches/manual."""
+        return await self._post_query(
+            "/api/switches/manual", {"addr": addr, "on": 1 if on else 0}
+        )
+
+    async def resume_switch_auto(self, addr: int) -> dict[str, Any] | None:
+        """Clear manual-hold so the hub's pump automation takes over again.
+        POST /api/switches/resume."""
+        return await self._post_query("/api/switches/resume", {"addr": addr})
 
     async def get_led(self) -> dict[str, Any]:
         """Hub LED config — count, brightness, per-tank colors."""

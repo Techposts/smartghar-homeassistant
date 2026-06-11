@@ -30,6 +30,10 @@ DEVICE_KIND_AIR = "air"
 # AmbiSense — radar presence + LED follow-me. Standalone hub (single
 # ESP32 advertising itself) presents one virtual sub-device of this kind.
 DEVICE_KIND_PRESENCE = "presence"
+# SmartGhar Smart Switch — mains relay + current/temp sensing controlling a
+# pump. Polled from /api/switches (NOT the tank device list); the hub runs the
+# pump automation and HA exposes manual control + telemetry.
+DEVICE_KIND_SWITCH = "switch"
 
 # Config keys
 CONF_HUB_ID = "hub_id"
@@ -44,6 +48,7 @@ MODEL_HUB_GENERIC = "SmartGhar Hub"
 
 MODEL_TANK = "TankSync TX (Tank)"
 MODEL_PRESENCE = "AmbiSense Sensor"
+MODEL_SWITCH = "SmartGhar Smart Switch"
 
 
 def hub_model_for_product(product: str | None) -> str:
