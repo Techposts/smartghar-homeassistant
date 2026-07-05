@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
@@ -22,7 +23,8 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import CONF_CONNECTION, CONNECTION_USB, DOMAIN
+from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, switch_device_info
 
@@ -32,6 +34,10 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
+    if entry.data.get(CONF_CONNECTION) == CONNECTION_USB:
+        _async_setup_serial_switches(hass, entry, async_add_entities)
+        return
+
     coordinator: SmartGharCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[SwitchEntity] = []
     # Only register the buzzer switch if the hub responded to /api/v1/hub/buzzer
@@ -146,3 +152,54 @@ class SmartGharPumpRelay(CoordinatorEntity[SmartGharCoordinator], SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.coordinator.client.set_switch_relay(self._addr, False)
         await self.coordinator.async_request_refresh()
+
+
+# ─── USB-CDC coordinator ("HA stick") pump/relay switch ─────────────────────
+
+class SmartGharSerialPumpSwitch(SmartGharSerialNodeEntity, SwitchEntity):
+    """Smart Switch relay over the serial protocol (proto v1 `pump` command).
+
+    Optimistic OFF→pending: the ack confirms the hub accepted the command; the
+    real state lands with the next SWSTAT-driven telemetry echo. Hub-side
+    safety automation keeps precedence — a refusal surfaces as a logged error
+    (code=conflict) and the state snaps back on the next echo.
+    """
+
+    _attr_device_class = SwitchDeviceClass.SWITCH
+    _attr_name = "Pump"
+
+    def __init__(self, coordinator, node_id: int) -> None:
+        super().__init__(coordinator, node_id)
+        hub_id = coordinator.hub.get("device_id", "unknown")
+        self._attr_unique_id = f"{hub_id}-node{node_id}-relay"
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self.sensor_value("relay")
+        return None if val is None else bool(val)
+
+    async def _set(self, on: bool) -> None:
+        link = self.coordinator.link
+        if link is None:
+            raise HomeAssistantError("Serial hub is not connected")
+        try:
+            await link.set_pump(self._node_id, on)
+        except Exception as err:  # noqa: BLE001 — includes conflict refusals
+            raise HomeAssistantError(f"Hub refused pump command: {err}") from err
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._set(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._set(False)
+
+
+def _async_setup_serial_switches(hass, entry, async_add_entities) -> None:
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+
+    def factory(node):
+        if node.device_type != "switch":
+            return []
+        return [SmartGharSerialPumpSwitch(coordinator, node.node_id)]
+
+    async_add_serial_nodes(coordinator, async_add_entities, factory)

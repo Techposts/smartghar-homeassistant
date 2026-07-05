@@ -2,6 +2,17 @@
   "config": {
     "step": {
       "user": {
+        "title": "Connect your SmartGhar hub",
+        "menu_options": {
+          "lan": "WiFi / network hub",
+          "usb": "USB coordinator (HA stick)"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "SmartGhar Hub discovered",
+        "description": "Add this hub to Home Assistant?"
+      },
+      "lan": {
         "title": "Add SmartGhar Hub",
         "description": "Enter your hub's IP address. Find it in the hub's web UI or your router's device list.",
         "data": {
@@ -9,15 +20,19 @@
           "local_token": "Local API token (optional)"
         }
       },
-      "zeroconf_confirm": {
-        "title": "SmartGhar Hub discovered",
-        "description": "Add this hub to Home Assistant?"
+      "usb": {
+        "title": "USB coordinator",
+        "description": "Plug the TankSync coordinator into this Home Assistant machine and enter its serial port. Prefer the stable /dev/serial/by-id/… path. Remote bridges work too (socket://host:port).",
+        "data": {
+          "serial_port": "Serial port or URL"
+        }
       }
     },
     "error": {
       "cannot_connect": "Failed to reach the hub. Check that it's on the same network as Home Assistant and that you can ping it.",
       "invalid_token": "The local token was rejected. Re-copy it from the hub's web UI.",
-      "already_configured": "This hub is already configured."
+      "already_configured": "This hub is already configured.",
+      "proto_mismatch": "The coordinator speaks a newer protocol — update this integration"
     },
     "abort": {
       "already_configured": "This hub is already configured.",

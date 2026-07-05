@@ -25,7 +25,19 @@ from .api import (
     SmartGharHubClient,
     SmartGharInvalidAuth,
 )
-from .const import CONF_HUB_ID, CONF_LOCAL_TOKEN, DOMAIN
+from .const import (
+    CONF_CONNECTION,
+    CONF_HUB_ID,
+    CONF_LOCAL_TOKEN,
+    CONF_SERIAL_PORT,
+    CONNECTION_USB,
+    DOMAIN,
+)
+from .serial_link import (
+    SerialCoordinatorLink,
+    SerialLinkError,
+    SerialProtocolMismatch,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,7 +72,16 @@ class SmartGharConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Manual hub entry."""
+        """Entry point: choose how the hub is connected."""
+        return self.async_show_menu(
+            step_id="user",
+            menu_options=["lan", "usb"],
+        )
+
+    async def async_step_lan(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Manual hub entry (WiFi/LAN hub — the original path)."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -86,13 +107,57 @@ class SmartGharConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
 
         return self.async_show_form(
-            step_id="user",
+            step_id="lan",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_HOST): str,
                     vol.Optional(CONF_LOCAL_TOKEN): str,
                 }
             ),
+            errors=errors,
+        )
+
+    async def async_step_usb(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """USB-CDC coordinator ("HA stick") — hub plugged into the HA machine.
+
+        The port is a device path (prefer /dev/serial/by-id/…, stable across
+        re-enumeration) or any pyserial URL — socket://host:port works for
+        ser2net / remote-bridge setups. Validated by a real proto-v1 handshake.
+        """
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            port = user_input[CONF_SERIAL_PORT].strip()
+            link = None
+            try:
+                link = await SerialCoordinatorLink.open(port)
+                info = await link.start()
+            except SerialProtocolMismatch:
+                errors["base"] = "proto_mismatch"
+            except (SerialLinkError, OSError, ValueError) as err:
+                _LOGGER.warning("Serial hub probe on %s failed: %s", port, err)
+                errors["base"] = "cannot_connect"
+            else:
+                await self.async_set_unique_id(info.device_id)
+                self._abort_if_unique_id_configured(
+                    updates={CONF_SERIAL_PORT: port})
+                return self.async_create_entry(
+                    title=f"TankSync Coordinator {info.device_id[-4:]}",
+                    data={
+                        CONF_CONNECTION: CONNECTION_USB,
+                        CONF_SERIAL_PORT: port,
+                        CONF_HUB_ID: info.device_id,
+                    },
+                )
+            finally:
+                if link:
+                    await link.close()
+
+        return self.async_show_form(
+            step_id="usb",
+            data_schema=vol.Schema({vol.Required(CONF_SERIAL_PORT): str}),
             errors=errors,
         )
 

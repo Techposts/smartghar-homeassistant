@@ -10,6 +10,7 @@ import logging
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
@@ -17,7 +18,13 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
 from .api import SmartGharHubClient
-from .const import CONF_LOCAL_TOKEN, DOMAIN
+from .const import (
+    CONF_CONNECTION,
+    CONF_LOCAL_TOKEN,
+    CONF_SERIAL_PORT,
+    CONNECTION_USB,
+    DOMAIN,
+)
 from .coordinator import SmartGharCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,6 +42,15 @@ TEST_BUZZER_SCHEMA = vol.Schema({
     vol.Required("event"): vol.All(vol.Coerce(int), vol.Range(min=0, max=13)),
     vol.Optional("profile"): vol.All(vol.Coerce(int), vol.Range(min=0, max=2)),
 })
+
+# USB-CDC coordinator entries expose the node-level surfaces only — hub-level
+# HTTP things (OTA update entity, LED numbers, buzzer, …) don't exist on the
+# serial protocol (v1).
+SERIAL_PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.SWITCH,
+]
 
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
@@ -142,6 +158,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     await _async_register_services(hass)
 
+    # USB-CDC coordinator ("HA stick"): a hub plugged into the HA machine
+    # speaking the proto-v1 NDJSON serial protocol. No WiFi/HTTP involved;
+    # entities are pushed from the serial stream.
+    if entry.data.get(CONF_CONNECTION) == CONNECTION_USB:
+        from .serial_coordinator import SmartGharSerialCoordinator
+
+        serial_coordinator = SmartGharSerialCoordinator(
+            hass, entry.data[CONF_SERIAL_PORT])
+        try:
+            await serial_coordinator.async_connect()
+        except Exception as err:  # noqa: BLE001 — retryable setup failure
+            raise ConfigEntryNotReady(
+                f"Serial hub on {entry.data[CONF_SERIAL_PORT]}: {err}") from err
+        hass.data[DOMAIN][entry.entry_id] = serial_coordinator
+        await hass.config_entries.async_forward_entry_setups(entry, SERIAL_PLATFORMS)
+        return True
+
     session = async_get_clientsession(hass)
     client = SmartGharHubClient(
         host=entry.data[CONF_HOST],
@@ -166,6 +199,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    if entry.data.get(CONF_CONNECTION) == CONNECTION_USB:
+        serial_coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+        if serial_coordinator is not None:
+            await serial_coordinator.async_shutdown_link()
+        unloaded = await hass.config_entries.async_unload_platforms(
+            entry, SERIAL_PLATFORMS)
+        if unloaded:
+            hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+        return unloaded
+
     coordinator: SmartGharCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
     if coordinator is not None:
         await coordinator.stop_ws()

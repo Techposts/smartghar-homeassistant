@@ -38,6 +38,11 @@ DEVICE_KIND_SWITCH = "switch"
 # Config keys
 CONF_HUB_ID = "hub_id"
 CONF_LOCAL_TOKEN = "local_token"
+# USB-CDC coordinator ("HA stick") entries — see serial_link/serial_coordinator.
+CONF_CONNECTION = "connection"       # absent/"lan" = HTTP hub, "usb" = serial stick
+CONF_SERIAL_PORT = "serial_port"     # /dev/serial/by-id/… or any pyserial URL (socket://…)
+CONNECTION_LAN = "lan"
+CONNECTION_USB = "usb"
 
 # Model strings for HA device registry — visible in Settings → Devices.
 # Hub model is dispatched by the `product` field from /api/v1/info so a

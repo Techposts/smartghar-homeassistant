@@ -220,6 +220,11 @@ class SerialCoordinatorLink:
                 if measure:
                     node.sensors[measure] = {"unit": s.get("unit", ""),
                                              "value": s.get("value")}
+            # Health flags ride as top-level telemetry fields; fold them into
+            # the sensors map as pseudo-measures so consumers have one lookup.
+            for extra in ("suspect", "sensor_error"):
+                if extra in msg:
+                    node.sensors[extra] = {"unit": "bool", "value": bool(msg[extra])}
             node.online = True
             node.last_seen_s = 0
             if self.on_telemetry:

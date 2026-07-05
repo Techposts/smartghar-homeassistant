@@ -14,7 +14,16 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DEVICE_KIND_PRESENCE, DEVICE_KIND_TANK, DOMAIN, MODEL_PRESENCE, MODEL_TANK
+from .const import (
+    CONF_CONNECTION,
+    CONNECTION_USB,
+    DEVICE_KIND_PRESENCE,
+    DEVICE_KIND_TANK,
+    DOMAIN,
+    MODEL_PRESENCE,
+    MODEL_TANK,
+)
+from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info, switch_device_info
 
@@ -32,6 +41,10 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
+    if entry.data.get(CONF_CONNECTION) == CONNECTION_USB:
+        _async_setup_serial_binary_sensors(hass, entry, async_add_entities)
+        return
+
     coordinator: SmartGharCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[BinarySensorEntity] = [SmartGharHubOtaAvailable(coordinator)]
     # Presence sub-devices — one occupancy sensor per AmbiSense unit.
@@ -280,3 +293,61 @@ class SmartGharSwitchFault(
     def is_on(self) -> bool:
         sw = self._sw
         return bool(sw and (int(sw.get("fault", 0)) & self._bit))
+
+
+# ─── USB-CDC coordinator ("HA stick") binary sensors ────────────────────────
+
+class SmartGharSerialOnline(SmartGharSerialNodeEntity, BinarySensorEntity):
+    """Node reachability, as reported by the hub's registry."""
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_name = "Online"
+
+    def __init__(self, coordinator, node_id: int) -> None:
+        super().__init__(coordinator, node_id)
+        hub_id = coordinator.hub.get("device_id", "unknown")
+        self._attr_unique_id = f"{hub_id}-node{node_id}-online"
+
+    @property
+    def is_on(self) -> bool | None:
+        node = self.node
+        return None if node is None else node.online
+
+
+class SmartGharSerialProblem(SmartGharSerialNodeEntity, BinarySensorEntity):
+    """Tank sensor-health flag (suspect reading / sensor error)."""
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_name = "Sensor problem"
+
+    def __init__(self, coordinator, node_id: int) -> None:
+        super().__init__(coordinator, node_id)
+        hub_id = coordinator.hub.get("device_id", "unknown")
+        self._attr_unique_id = f"{hub_id}-node{node_id}-problem"
+
+    @property
+    def is_on(self) -> bool | None:
+        node = self.node
+        if node is None:
+            return None
+        # serial_link folds "suspect"/"sensor_error" telemetry extras into the
+        # sensors map only when present; absent = healthy.
+        for key in ("suspect", "sensor_error"):
+            entry = node.sensors.get(key)
+            if entry and entry.get("value"):
+                return True
+        return False
+
+
+def _async_setup_serial_binary_sensors(hass, entry, async_add_entities) -> None:
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+
+    def factory(node):
+        ents = [SmartGharSerialOnline(coordinator, node.node_id)]
+        if node.device_type == "tank":
+            ents.append(SmartGharSerialProblem(coordinator, node.node_id))
+        return ents
+
+    async_add_serial_nodes(coordinator, async_add_entities, factory)

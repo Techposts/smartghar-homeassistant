@@ -47,8 +47,10 @@ from .const import (
 )
 from homeassistant.util import dt as dt_util
 
+from .const import CONF_CONNECTION, CONNECTION_USB
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info, switch_device_info
+from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -228,6 +230,10 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up SmartGhar sensors from a config entry."""
+    if entry.data.get(CONF_CONNECTION) == CONNECTION_USB:
+        _async_setup_serial_sensors(hass, entry, async_add_entities)
+        return
+
     coordinator: SmartGharCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities: list[SensorEntity] = []
@@ -673,3 +679,90 @@ class SmartGharSwitchSensor(
         if raw is None:
             return None
         return round(float(raw) * self._scale, 2)
+
+
+# ─── USB-CDC coordinator ("HA stick") sensors ────────────────────────────────
+# One measure per entity, read straight from the node's pushed sensors[] map
+# (proto v1 — docs/coordinator-serial-protocol.md in the firmware repo).
+
+SERIAL_MEASURES: dict[str, list[SensorEntityDescription]] = {
+    "tank": [
+        SensorEntityDescription(key="level", name="Level",
+            native_unit_of_measurement=PERCENTAGE,
+            state_class=SensorStateClass.MEASUREMENT),
+        SensorEntityDescription(key="volume", name="Water volume",
+            native_unit_of_measurement=UnitOfVolume.LITERS,
+            device_class=SensorDeviceClass.VOLUME_STORAGE,
+            state_class=SensorStateClass.MEASUREMENT),
+        SensorEntityDescription(key="distance", name="Sensor distance",
+            native_unit_of_measurement=UnitOfLength.CENTIMETERS,
+            device_class=SensorDeviceClass.DISTANCE,
+            state_class=SensorStateClass.MEASUREMENT,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            entity_registry_enabled_default=False),
+    ],
+    "switch": [
+        SensorEntityDescription(key="current", name="Load current",
+            native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+            device_class=SensorDeviceClass.CURRENT,
+            state_class=SensorStateClass.MEASUREMENT),
+        SensorEntityDescription(key="power", name="Load power",
+            native_unit_of_measurement=UnitOfPower.WATT,
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT),
+        SensorEntityDescription(key="temperature", name="Board temperature",
+            native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            state_class=SensorStateClass.MEASUREMENT,
+            entity_category=EntityCategory.DIAGNOSTIC),
+    ],
+}
+
+SERIAL_COMMON: list[SensorEntityDescription] = [
+    SensorEntityDescription(key="battery", name="Battery",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.BATTERY,
+        state_class=SensorStateClass.MEASUREMENT),
+    SensorEntityDescription(key="rssi", name="Signal strength",
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False),
+]
+
+
+class SmartGharSerialSensor(SmartGharSerialNodeEntity, SensorEntity):
+    """A single measure from a serial-coordinator node."""
+
+    def __init__(self, coordinator, node_id: int,
+                 description: SensorEntityDescription) -> None:
+        super().__init__(coordinator, node_id)
+        self.entity_description = description
+        hub_id = coordinator.hub.get("device_id", "unknown")
+        self._attr_unique_id = f"{hub_id}-node{node_id}-{description.key}"
+
+    @property
+    def native_value(self):
+        node = self.node
+        if node is None:
+            return None
+        key = self.entity_description.key
+        if key == "battery":
+            # -1 = mains-powered (fleet convention) — no meaningful battery %.
+            return None if node.battery_pct < 0 else node.battery_pct
+        if key == "rssi":
+            return node.rssi
+        return self.sensor_value(key)
+
+
+def _async_setup_serial_sensors(hass, entry, async_add_entities) -> None:
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+
+    def factory(node):
+        descs = list(SERIAL_MEASURES.get(node.device_type, []))
+        descs += [d for d in SERIAL_COMMON
+                  if not (d.key == "battery" and node.battery_pct < 0)]
+        return [SmartGharSerialSensor(coordinator, node.node_id, d) for d in descs]
+
+    async_add_serial_nodes(coordinator, async_add_entities, factory)
