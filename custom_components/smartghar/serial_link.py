@@ -141,6 +141,10 @@ class SerialCoordinatorLink:
     async def ping(self) -> None:
         await self._command("ping")
 
+    async def open_pairing(self, seconds: int = 60) -> None:
+        """Open the hub's pairing window (LoRa + ESP-NOW, auto-closes)."""
+        await self._command("pair", seconds=seconds)
+
     async def set_pump(self, node_id: int, on: bool) -> None:
         await self._command("pump", node_id=node_id, on=on)
 

@@ -13,7 +13,9 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from homeassistant.exceptions import HomeAssistantError
 from .const import DEVICE_KIND_TANK, DOMAIN, MODEL_TANK
+from .const import CONF_CONNECTION, CONNECTION_USB  # serial coordinator entries
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info, switch_device_info
 
@@ -23,6 +25,10 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
+    if entry.data.get(CONF_CONNECTION) == CONNECTION_USB:
+        _async_setup_serial_buttons(hass, entry, async_add_entities)
+        return
+
     coordinator: SmartGharCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[ButtonEntity] = [
         SmartGharHubOtaCheck(coordinator),
@@ -182,3 +188,44 @@ class SmartGharSwitchResumeAuto(CoordinatorEntity[SmartGharCoordinator], ButtonE
     async def async_press(self) -> None:
         await self.coordinator.client.resume_switch_auto(self._addr)
         await self.coordinator.async_request_refresh()
+
+
+# ─── USB-CDC coordinator ("HA stick") buttons ────────────────────────────────
+
+class SmartGharSerialPairButton(ButtonEntity):
+    """Open the coordinator's pairing window (LoRa + ESP-NOW) from HA.
+
+    Lives on the coordinator hub device — press, then put the sensor in
+    pairing mode within 60 seconds; its entities appear automatically once
+    adopted. This replaces the stick's phone→AP→portal pairing dance.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Start pairing"
+    _attr_icon = "mdi:link-plus"
+
+    def __init__(self, coordinator) -> None:
+        self._coordinator = coordinator
+        hub_id = coordinator.hub.get("device_id", "unknown")
+        self._attr_unique_id = f"{hub_id}-pair"
+
+    @property
+    def device_info(self):
+        from homeassistant.helpers.device_registry import DeviceInfo
+        hub_id = self._coordinator.hub.get("device_id", "unknown")
+        return DeviceInfo(identifiers={(DOMAIN, f"{hub_id}-coordinator")})
+
+    @property
+    def available(self) -> bool:
+        return self._coordinator.link is not None
+
+    async def async_press(self) -> None:
+        link = self._coordinator.link
+        if link is None:
+            raise HomeAssistantError("Coordinator is not connected")
+        await link.open_pairing(60)
+
+
+def _async_setup_serial_buttons(hass, entry, async_add_entities) -> None:
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities([SmartGharSerialPairButton(coordinator)])
