@@ -94,8 +94,11 @@ class SerialCoordinatorLink:
 
     @classmethod
     async def open(cls, port: str, baudrate: int = 115200) -> "SerialCoordinatorLink":
-        """Open a real serial port (HA path; requires pyserial-asyncio)."""
-        import serial_asyncio  # lazy: tests don't need it
+        """Open a real serial port (HA path; requires pyserial-asyncio-fast)."""
+        try:
+            import serial_asyncio_fast as serial_asyncio  # HA-preferred fork
+        except ImportError:                                # tests / plain envs
+            import serial_asyncio
 
         reader, writer = await serial_asyncio.open_serial_connection(
             url=port, baudrate=baudrate)

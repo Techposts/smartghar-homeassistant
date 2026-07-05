@@ -11,9 +11,9 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/Techposts/smartghar-homeassistant/issues",
   "requirements": [
-    "pyserial-asyncio==0.6"
+    "pyserial-asyncio-fast==0.16"
   ],
-  "version": "0.10.0",
+  "version": "0.10.1",
   "zeroconf": [
     "_smartghar._tcp.local."
   ]

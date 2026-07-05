@@ -25,6 +25,7 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DOMAIN
@@ -56,11 +57,33 @@ class SmartGharSerialCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.hub: dict[str, Any] = {}
         self._runner: asyncio.Task | None = None
         self._stop = False
+        self._link_dead = False    # set by on_disconnect; cleared on reopen
 
     # ── lifecycle ─────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _preimport_serial() -> None:
+        """Import pyserial's lazily-loaded pieces off the event loop.
+
+        serial_for_url() imports serial.urlhandler.* on first use — inside the
+        loop that trips HA's blocking-import detector. One executor call at
+        setup keeps every later open() clean."""
+        import serial  # noqa: F401
+        try:
+            import serial.urlhandler.protocol_socket  # noqa: F401
+        except ImportError:
+            pass
+        try:
+            import serial_asyncio_fast  # noqa: F401
+        except ImportError:
+            try:
+                import serial_asyncio  # noqa: F401
+            except ImportError:
+                pass
+
     async def async_connect(self) -> None:
         """First connection — raises on failure so the config entry retries."""
+        await self.hass.async_add_executor_job(self._preimport_serial)
         await self._open()
         self._runner = self.hass.loop.create_task(self._reconnect_runner())
 
@@ -87,6 +110,17 @@ class SmartGharSerialCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "transports": info.transports,
             "max_nodes": info.max_nodes,
         }
+        # Register the coordinator hub itself as a device so per-node devices
+        # can point their via_device at it (unregistered, HA logs a
+        # "referencing a non existing via_device" warning per node).
+        dr.async_get(self.hass).async_get_or_create(
+            config_entry_id=self.config_entry.entry_id,
+            identifiers={(DOMAIN, f"{info.device_id}-coordinator")},
+            manufacturer="SmartGhar",
+            model=info.model,
+            name=f"TankSync Coordinator {info.device_id[-4:]}",
+            sw_version=info.fw,
+        )
         self.async_set_updated_data(self._snapshot())
         _LOGGER.info(
             "Serial hub %s connected on %s (fw %s, %d nodes)",
@@ -104,9 +138,10 @@ class SmartGharSerialCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @callback
     def _on_disconnect(self) -> None:
+        # A read-EOF leaves the writer looking healthy, so an explicit flag is
+        # the only reliable death signal for the reconnect runner.
+        self._link_dead = True
         _LOGGER.warning("Serial hub link on %s dropped — reconnecting", self.port)
-        # wake the runner immediately by cancelling the link; runner loops
-        self.hass.loop.call_soon_threadsafe(lambda: None)
 
     async def _reconnect_runner(self) -> None:
         """Re-open the port whenever the session dies (hub reboot/unplug)."""
@@ -114,8 +149,7 @@ class SmartGharSerialCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         while not self._stop:
             await asyncio.sleep(1.0)
             link = self.link
-            if link is not None and link.info is not None:
-                # Session looks alive; verify lazily via the poll cycle.
+            if link is not None and link.info is not None and not self._link_dead:
                 healthy = True
                 try:
                     healthy = not link._writer.is_closing()  # noqa: SLF001
@@ -129,6 +163,7 @@ class SmartGharSerialCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     await self.link.close()
                     self.link = None
                 await self._open()
+                self._link_dead = False
                 backoff = RECONNECT_BACKOFF_INITIAL_S
             except (SerialLinkError, OSError, Exception) as err:  # noqa: BLE001
                 _LOGGER.debug("Serial reconnect to %s failed: %s", self.port, err)
