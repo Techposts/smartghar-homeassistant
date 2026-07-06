@@ -13,7 +13,7 @@
   "requirements": [
     "pyserial-asyncio-fast==0.16"
   ],
-  "version": "0.11.0",
+  "version": "0.11.1",
   "zeroconf": [
     "_smartghar._tcp.local."
   ]

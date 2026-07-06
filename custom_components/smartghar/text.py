@@ -17,10 +17,12 @@ from .const import DEVICE_KIND_TANK, DOMAIN, MODEL_TANK
 from .device_info import subdevice_device_info
 from .coordinator import SmartGharCoordinator
 
-# Hub firmware caps tank names at TX_NAME_MAX (16 chars) but enforces a
-# stricter sanitised set on the device side. We mirror the length limit and
-# let the hub reject bad characters with a 4xx; the user sees the error in HA.
-TANK_NAME_MAX_LEN = 15
+# Hub firmware caps tank names at TX_NAME_MAX 25 (24 chars + NUL) on the
+# S3/DevKit hubs; older C3 hubs cap at 15 and sanitize/truncate server-side.
+# Mirror the LARGEST limit any hub can return — a shorter native_max makes
+# the entity raise (and go unavailable) when a hub serves a longer name.
+# Bad characters are still rejected by the hub with a 4xx; user sees it in HA.
+TANK_NAME_MAX_LEN = 24
 
 
 async def async_setup_entry(
