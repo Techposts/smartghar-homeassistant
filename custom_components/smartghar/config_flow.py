@@ -189,12 +189,31 @@ class SmartGharConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._discovered_host = ip_str or hostname
 
         self._discovered_hub_id = hub_id
-        # Hub friendly name not in TXT yet; fall back to mDNS instance.
-        self._discovered_name = (
+        # Prefer the mDNS HOSTNAME (unique per hub, e.g. "tanksync-5704") for the
+        # display name. Firmware broadcasts a constant service INSTANCE name
+        # ("TankSync Water Monitor"), so using discovery_info.name made every hub
+        # look identical and collide as "…-2" — a regression from the unique
+        # tanksync-XXXX label that the hostname still carries. Fall back to the
+        # instance name (disambiguated by hub_id) only if no hostname is present.
+        host_label = (discovery_info.hostname or "").rstrip(".")
+        if host_label.lower().endswith(".local"):
+            host_label = host_label[: -len(".local")]
+        instance = (
             discovery_info.name.split(".")[0].replace("\\032", " ")
             if discovery_info.name
-            else None
+            else ""
         )
+        short = hub_id[-4:] if hub_id else ""
+        if host_label:
+            self._discovered_name = host_label
+        elif instance and short and short.lower() not in instance.lower():
+            self._discovered_name = f"{instance} ({short})"
+        elif instance:
+            self._discovered_name = instance
+        elif short:
+            self._discovered_name = f"SmartGhar Hub {short}"
+        else:
+            self._discovered_name = None
 
         await self.async_set_unique_id(hub_id)
         self._abort_if_unique_id_configured(updates={CONF_HOST: self._discovered_host})
