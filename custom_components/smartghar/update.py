@@ -14,6 +14,7 @@ from homeassistant.components.update import (
     UpdateEntityFeature,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -98,12 +99,12 @@ class SmartGharHubUpdate(CoordinatorEntity[SmartGharCoordinator], UpdateEntity):
         try:
             await self.coordinator.client.trigger_ota_install()
         except SmartGharApiError as err:
-            # If /api/v1/hub/ota/install isn't on this firmware version yet,
-            # fall back to triggering a check. v0.5+ firmware has install.
-            if "404" in str(err):
-                await self.coordinator.client.trigger_ota_check()
-                return
-            raise
+            # Surface the failure instead of silently degrading to a check.
+            # The old fallback turned "wrong endpoint" into "button does
+            # nothing", which hid a 404 for the entire life of the entity.
+            raise HomeAssistantError(
+                f"Hub refused the update request: {err}"
+            ) from err
         # Refresh after a short delay so the available-version field updates
         # post-install. Hub is mid-flash; coordinator will see UpdateFailed
         # for ~60s, that's expected.

@@ -204,16 +204,20 @@ class SmartGharHubClient:
             payload["profile"] = profile
         await self._post("/api/v1/hub/buzzer/test", payload)
 
+    # NOTE: OTA lives under /api/ota/*, NOT the /api/v1/hub/* namespace the
+    # rest of this client uses. These two were written against a path that
+    # never existed on any shipped firmware, so Install 404'd, fell back to a
+    # check that also 404'd, and the button appeared to do nothing at all.
+    # Verified against the receiver firmware's registered URIs.
     async def trigger_ota_check(self) -> None:
-        """Trigger an OTA manifest fetch. Hub responds immediately; check
-        runs in background."""
-        await self._post("/api/v1/hub/ota/check")
+        """Ask the hub to re-fetch the release manifest. Runs in background."""
+        await self._post("/api/ota/check")
 
     async def trigger_ota_install(self) -> None:
         """Trigger an OTA install of the available firmware. Hub responds
         immediately; download + flash + reboot run in background. The hub
         will be unreachable for ~60s during the flash."""
-        await self._post("/api/v1/hub/ota/install")
+        await self._post("/api/ota/update")
 
     async def identify_hub(self) -> None:
         """Blink the hub's status LED so the user can find it physically."""
