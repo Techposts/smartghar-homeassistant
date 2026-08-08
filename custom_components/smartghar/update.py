@@ -6,6 +6,7 @@ Tasmota updates.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from homeassistant.components.update import (
@@ -24,6 +25,11 @@ from .api import SmartGharApiError
 from .const import DOMAIN
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info
+
+_POLL_INTERVAL = 3       # seconds between OTA state polls
+_POLL_MAX = 100          # ~5 min ceiling; a 1.4MB flash takes well under this
+_REBOOT_GRACE = 45       # unreachable this long late in a flash == rebooting
+_REBOOT_SETTLE = 20      # let the hub come back before re-reading its version
 
 
 async def async_setup_entry(
@@ -47,12 +53,16 @@ class SmartGharHubUpdate(CoordinatorEntity[SmartGharCoordinator], UpdateEntity):
     _attr_name = "Firmware"
     _attr_device_class = UpdateDeviceClass.FIRMWARE
     _attr_supported_features = (
-        UpdateEntityFeature.INSTALL | UpdateEntityFeature.RELEASE_NOTES
+        UpdateEntityFeature.INSTALL
+        | UpdateEntityFeature.RELEASE_NOTES
+        | UpdateEntityFeature.PROGRESS
     )
 
     def __init__(self, coordinator: SmartGharCoordinator) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"smartghar_{coordinator.hub_id}_firmware_update"
+        self._attr_in_progress = False
+        self._attr_update_percentage: int | None = None
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -95,17 +105,56 @@ class SmartGharHubUpdate(CoordinatorEntity[SmartGharCoordinator], UpdateEntity):
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any
     ) -> None:
-        """Trigger the OTA install. Hub flashes + reboots in background."""
+        """Trigger the OTA and follow it to a real outcome.
+
+        Firing the request and returning immediately is what made this feel
+        broken: HA showed a progress bar, dropped it a second later, and
+        reported nothing — success and failure looked identical. The hub has
+        published {status, progress, error_msg} all along; nothing read it.
+        """
         try:
             await self.coordinator.client.trigger_ota_install()
         except SmartGharApiError as err:
-            # Surface the failure instead of silently degrading to a check.
-            # The old fallback turned "wrong endpoint" into "button does
-            # nothing", which hid a 404 for the entire life of the entity.
-            raise HomeAssistantError(
-                f"Hub refused the update request: {err}"
-            ) from err
-        # Refresh after a short delay so the available-version field updates
-        # post-install. Hub is mid-flash; coordinator will see UpdateFailed
-        # for ~60s, that's expected.
+            raise HomeAssistantError(f"Hub refused the update request: {err}") from err
+
+        self._attr_in_progress = True
+        self._attr_update_percentage = 0
+        self.async_write_ha_state()
+
+        # The hub goes silent while it writes the final image and reboots, so
+        # unreachability late in the run is expected rather than a failure.
+        # Only give up once it has been unreachable for a sustained stretch.
+        unreachable = 0
+        try:
+            for _ in range(_POLL_MAX):
+                await asyncio.sleep(_POLL_INTERVAL)
+                try:
+                    state = await self.coordinator.client.get_ota_state()
+                    unreachable = 0
+                except SmartGharApiError:
+                    unreachable += 1
+                    if unreachable * _POLL_INTERVAL >= _REBOOT_GRACE:
+                        break          # treat as flashed + rebooting
+                    continue
+
+                status = (state.get("status") or "").lower()
+                pct = state.get("progress")
+                if isinstance(pct, int):
+                    self._attr_update_percentage = pct
+                    self.async_write_ha_state()
+
+                if status == "error":
+                    raise HomeAssistantError(
+                        "Hub OTA failed: "
+                        f"{state.get('error_msg') or 'no detail reported'}"
+                    )
+                if status == "done":
+                    break
+        finally:
+            self._attr_in_progress = False
+            self._attr_update_percentage = None
+            self.async_write_ha_state()
+
+        # Let the hub finish rebooting before we believe its version again.
+        await asyncio.sleep(_REBOOT_SETTLE)
         await self.coordinator.async_request_refresh()

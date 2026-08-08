@@ -209,6 +209,15 @@ class SmartGharHubClient:
     # never existed on any shipped firmware, so Install 404'd, fell back to a
     # check that also 404'd, and the button appeared to do nothing at all.
     # Verified against the receiver firmware's registered URIs.
+    async def get_ota_state(self) -> dict[str, Any]:
+        """Current OTA state: {status, progress, latest_version, error_msg?}.
+
+        status is one of idle / checking / available / downloading / done /
+        error. `error_msg` names the failing stage on firmware >= 3.6.9;
+        older firmware sends a bare "Download failed".
+        """
+        return await self._get("/api/ota/state")
+
     async def trigger_ota_check(self) -> None:
         """Ask the hub to re-fetch the release manifest. Runs in background."""
         await self._post("/api/ota/check")
