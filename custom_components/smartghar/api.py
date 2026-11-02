@@ -154,6 +154,16 @@ class SmartGharHubClient:
         """Edit one or more device config fields. Maps to PUT /api/v1/devices/<id>."""
         return await self._put(f"/api/v1/devices/{device_id}", fields)
 
+    async def device_command(self, device_id: int, cmd: str) -> dict[str, Any] | None:
+        """Send a momentary command to a device. POST /api/v1/devices/<id>/command
+        with body {"cmd": <cmd>}; the device answers {"ok": bool}.
+
+        Used by the Auvra speaker for transport (play / pause / play_pause /
+        next / previous / stop) and power (standby / wake). Transport commands
+        are relayed to the connected AirPlay sender and come back ok:false
+        when no sender is connected — that is a no-op, not an error."""
+        return await self._post(f"/api/v1/devices/{device_id}/command", {"cmd": cmd})
+
     # ── Smart Switch (DEV_SWITCH) — polled separately from tanks ──────────────
     async def get_switches(self) -> list[dict[str, Any]]:
         """Paired Smart Switches with telemetry + pump rule. GET /api/switches.

@@ -2,6 +2,33 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## v0.12.0 — Auvra speaker (media_player, max volume, speaker offset, night mode)
+
+First audio product on the integration: the SmartGhar **Auvra** AirPlay 2 streamer. Auvra advertises `product=auvra`, schema 1.1, `topology=standalone`, and one device of the new kind `speaker` (id 1), so every entity below lands on the single "Auvra" device card together with the hub-level entities every SmartGhar hub already gets (uptime, Wi-Fi signal, firmware version, OTA `update` entity, identify, reboot, LED brightness). Requires Auvra firmware **0.8.1+**.
+
+### Added
+
+- **`media_player.<name>`** — new `media_player` platform. Takes the device name (no entity name of its own), device class `speaker`.
+  - State: `standby` (display off, still reachable), `idle` (no AirPlay sender), `playing`, `paused`, `buffering` (stall while playing).
+  - Features: play / pause / stop / next / previous (relayed to the connected AirPlay sender; a no-op when nothing is connected), volume set / step (5 %) / mute, turn off (standby) / turn on (wake).
+  - Now playing: title, artist, album, position + duration, `app_name` = connected sender, album artwork proxied through HA (`/api/art.jpg`, cache-busted by the firmware's `art_rev`).
+  - Attributes: `sender`, `stall`, `art_rev`.
+- **`number.<name>_max_volume`** (CONFIG) — volume ceiling, 50–100 %.
+- **`number.<name>_speaker_offset`** (CONFIG) — AirPlay sync trim, −250…+250 ms in 5 ms steps.
+- **`switch.<name>_night_mode`** (CONFIG) — the speaker's night mode.
+- `hub_model_for_product("auvra")` → model "Auvra" in the device registry.
+- `api.py`: `device_command(device_id, cmd)` → `POST /api/v1/devices/<id>/command {"cmd": …}`. Volume, mute and the config knobs reuse the existing flat `PUT /api/v1/devices/<id>` (`update_device`).
+- `speaker_logic.py`: pure state-mapping helpers (no Home Assistant imports) covered by `tests/test_speaker_state_map.py`, which runs with plain `python3`.
+
+### Changed
+
+- **LED brightness** slider range is now product-aware: 0–100 on Auvra (its `/api/v1/hub/led` speaks percent), unchanged 0–255 on TankSync / AmbiSense hubs.
+
+### Upgrade notes
+
+- No config migration. TankSync, AmbiSense and Smart Switch entities keep their `unique_id`s and history.
+- Auvra is auto-discovered over mDNS (`_smartghar._tcp`) like every other hub; no new config-flow step.
+
 ## v0.8.1 — Power source, accurate consumption, reading freshness
 
 - **Power Source sensor** (solar / mains) per tank. A mains/USB transmitter has no battery, so the hub reports it as such; HA now surfaces the source and no longer treats an absent battery as a flat one.

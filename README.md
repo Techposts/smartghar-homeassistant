@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)](CHANGELOG.md)
 
-Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring) and **[AmbiSense](https://github.com/Techposts/AmbiSense)** (radar presence + LED follow-me lighting), with **PowerSync** (energy), **RidgeSync** (fingerprint locks), and other products on the roadmap. One integration, every Techposts device on your network auto-discovers.
+Local-first Home Assistant integration for the [SmartGhar](https://smartghar.org) IoT product family — **TankSync** (water-tank monitoring), **[AmbiSense](https://github.com/Techposts/AmbiSense)** (radar presence + LED follow-me lighting) and **Auvra** (AirPlay 2 speaker), with **PowerSync** (energy), **RidgeSync** (fingerprint locks), and other products on the roadmap. One integration, every Techposts device on your network auto-discovers.
 
 > **📚 [Read the Wiki →](https://github.com/Techposts/smartghar-homeassistant/wiki)** — full documentation lives there: installation, entities reference, Energy dashboard setup, multi-hub guides, troubleshooting, FAQ.
 
@@ -55,6 +55,13 @@ For details + troubleshooting, see the **[Installation page in the wiki →](htt
 - `sensor: distance` (cm), `target_count`, `seconds_since_seen` (diagnostic), `rssi_dbm` (diagnostic)
 - Hub model dispatch — AmbiSense devices show as "AmbiSense Hub", TankSync as "TankSync Hub"
 - Multi-device safe: 5 AmbiSense units = 5 distinct HA devices, no entity-id collisions
+
+### Auvra — AirPlay 2 speaker (added v0.12.0)
+- Auto-discovery against Auvra firmware **0.8.1+** (`product=auvra`, standalone topology, one `speaker` device)
+- `media_player` entity named after the speaker: play / pause / stop / next / previous (relayed to the connected AirPlay sender), volume set / step / mute, turn off = standby, turn on = wake; states `standby` / `idle` / `playing` / `paused` / `buffering`
+- Now playing: title, artist, album, position, duration, sender name as `app_name`, album artwork proxied through HA
+- Config entities: `number: max_volume` (50–100 %), `number: speaker_offset` (−250…+250 ms sync trim), `switch: night_mode`
+- Shares the hub-level entities (uptime, Wi-Fi signal, firmware `update`, identify = speaker-check chime, reboot, LED brightness 0–100)
 
 For the full entity catalogue, see **[Entities Reference →](https://github.com/Techposts/smartghar-homeassistant/wiki/Entities-Reference)**.
 

@@ -1,8 +1,9 @@
-"""Switch entities — hub buzzer master enable (rx-v2.8.4+).
+"""Switch entities — hub buzzer master enable (rx-v2.8.4+), Smart Switch
+relays, and the Auvra speaker's night mode.
 
-Single hub-level switch that mutes every alert except the boot tone.
-The boot tone always plays on power-up regardless of this switch —
-that's intentional, it confirms the hub is initialized.
+The buzzer switch is a single hub-level switch that mutes every alert
+except the boot tone. The boot tone always plays on power-up regardless of
+this switch — that's intentional, it confirms the hub is initialized.
 
 Per-alert switches (Critical-low / Overflow / Sensor-offline) are
 intentionally NOT exposed here. They live on the hub's local web UI
@@ -23,10 +24,16 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_CONNECTION, CONNECTION_USB, DOMAIN
+from .const import (
+    CONF_CONNECTION,
+    CONNECTION_USB,
+    DEVICE_KIND_SPEAKER,
+    DOMAIN,
+    MODEL_SPEAKER,
+)
 from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
 from .coordinator import SmartGharCoordinator
-from .device_info import hub_device_info, switch_device_info
+from .device_info import hub_device_info, subdevice_device_info, switch_device_info
 
 
 async def async_setup_entry(
@@ -51,6 +58,10 @@ async def async_setup_entry(
     for sw in coordinator.switches:
         if "address" in sw:
             entities.append(SmartGharPumpRelay(coordinator, sw["address"]))
+    # Auvra speaker: night mode (config flag on the device).
+    for dev in coordinator.devices:
+        if dev.get("kind") == DEVICE_KIND_SPEAKER:
+            entities.append(SmartGharSpeakerNightMode(coordinator, dev["id"]))
     async_add_entities(entities)
 
 
@@ -152,6 +163,62 @@ class SmartGharPumpRelay(CoordinatorEntity[SmartGharCoordinator], SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.coordinator.client.set_switch_relay(self._addr, False)
         await self.coordinator.async_request_refresh()
+
+
+class SmartGharSpeakerNightMode(CoordinatorEntity[SmartGharCoordinator], SwitchEntity):
+    """Auvra night mode — the `night` flag in the speaker's config.
+
+    Read from /api/v1/devices config.night; written with the flat PUT
+    /api/v1/devices/<id> {"night": true|false} like the other speaker knobs.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "night"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_device_class = SwitchDeviceClass.SWITCH
+    _attr_icon = "mdi:weather-night"
+
+    def __init__(self, coordinator: SmartGharCoordinator, device_id: int) -> None:
+        super().__init__(coordinator)
+        self._device_id = device_id
+        self._attr_unique_id = (
+            f"smartghar_{coordinator.hub_id}_speaker_{device_id}_night"
+        )
+
+    @property
+    def _dev(self) -> dict[str, Any] | None:
+        return self.coordinator.device_by_id(self._device_id)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        dev = self._dev or {"kind": DEVICE_KIND_SPEAKER, "id": self._device_id}
+        return subdevice_device_info(
+            self.coordinator, dev,
+            sub_model=MODEL_SPEAKER,
+            fallback_name=f"Speaker {self._device_id}",
+        )
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._dev is not None
+
+    @property
+    def is_on(self) -> bool | None:
+        dev = self._dev
+        if not dev:
+            return None
+        config = dev.get("config") or {}
+        return bool(config["night"]) if "night" in config else None
+
+    async def _set(self, on: bool) -> None:
+        await self.coordinator.client.update_device(self._device_id, {"night": on})
+        await self.coordinator.async_request_refresh()
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._set(False)
 
 
 # ─── USB-CDC coordinator ("HA stick") pump/relay switch ─────────────────────

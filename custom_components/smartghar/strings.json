@@ -113,6 +113,12 @@
       },
       "tank_lora_power": {
         "name": "LoRa TX power"
+      },
+      "max_volume": {
+        "name": "Max volume"
+      },
+      "speaker_offset": {
+        "name": "Speaker offset"
       }
     },
     "button": {
@@ -158,6 +164,9 @@
     "switch": {
       "buzzer_enabled": {
         "name": "Buzzer alerts"
+      },
+      "night": {
+        "name": "Night mode"
       }
     },
     "select": {
