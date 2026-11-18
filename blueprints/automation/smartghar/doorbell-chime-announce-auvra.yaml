@@ -1,0 +1,113 @@
+blueprint:
+  name: SmartGhar — Doorbell, chime and announce on Auvra
+  description: >
+    When the doorbell rings, play a chime on Auvra and then speak a short
+    message. Both are announcements: Auvra ducks the music, plays them on
+    top (queued in order) and then restores what was playing.
+
+    The doorbell can be a binary sensor (rings = on) or an event entity
+    (for example a doorbell's "ding" event). The chime is optional: a media
+    source ID such as media-source://media_source/local/doorbell.mp3 (put the
+    file in HA's /media folder) or an http(s) URL to an MP3.
+
+    Needs Auvra firmware with announcements (Auvra 0.10.0 or later).
+  domain: automation
+  source_url: https://github.com/Techposts/smartghar-homeassistant/blob/main/blueprints/automation/smartghar/doorbell-chime-announce-auvra.yaml
+  input:
+    doorbell:
+      name: Doorbell
+      description: Binary sensor or event entity that fires when someone rings.
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+            - domain: event
+    event_type:
+      name: Event type (optional, event entities only)
+      description: >
+        Only announce for this event type (for example "ring"). Leave empty to
+        announce on every new event.
+      default: ""
+      selector:
+        text:
+    speakers:
+      name: Auvra speaker(s)
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: smartghar
+              domain: media_player
+    chime:
+      name: Chime (optional)
+      description: Media source ID or http(s) URL of the chime. Leave empty for no chime.
+      default: ""
+      selector:
+        text:
+    tts_engine:
+      name: Text-to-speech engine
+      selector:
+        entity:
+          filter:
+            - domain: tts
+    message:
+      name: Message
+      default: Someone is at the door.
+      selector:
+        text:
+    cooldown_seconds:
+      name: Cooldown (seconds)
+      description: Ignore more rings within this window.
+      default: 15
+      selector:
+        number:
+          min: 0
+          max: 300
+          step: 5
+          unit_of_measurement: s
+
+mode: single
+max_exceeded: silent
+
+variables:
+  chime: !input chime
+  speakers: !input speakers
+  event_type: !input event_type
+
+triggers:
+  - trigger: state
+    entity_id: !input doorbell
+
+conditions:
+  - condition: template
+    value_template: >
+      {{ trigger.to_state is not none
+         and trigger.from_state is not none
+         and trigger.to_state.state not in ['unavailable', 'unknown']
+         and trigger.from_state.state not in ['unavailable', 'unknown']
+         and trigger.from_state.state != trigger.to_state.state
+         and (trigger.to_state.state == 'on'
+              or (trigger.entity_id.startswith('event.')
+                  and (event_type | length == 0
+                       or trigger.to_state.attributes.get('event_type') == event_type))) }}
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ chime | length > 0 }}"
+    then:
+      - action: media_player.play_media
+        target:
+          entity_id: "{{ speakers }}"
+        data:
+          media_content_id: "{{ chime }}"
+          media_content_type: music
+          announce: true
+  - action: tts.speak
+    target:
+      entity_id: !input tts_engine
+    data:
+      media_player_entity_id: "{{ speakers }}"
+      message: !input message
+  - delay:
+      seconds: !input cooldown_seconds

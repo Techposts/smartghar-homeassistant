@@ -9,11 +9,15 @@ MANUFACTURER = "SmartGhar"
 # Spec version this integration speaks. Hub firmware advertises its
 # schema_version on /api/v1/info; if it ever bumps to 2.x, this integration
 # would need updating. 1.1 added `topology` + `stream` blocks (alpha.4).
-PROTOCOL_VERSION = "1.1"
+# 1.2 (additive) adds Auvra capabilities: eq, radio, url_play, announce.
+PROTOCOL_VERSION = "1.2"
 ZEROCONF_TYPE = "_smartghar._tcp.local."
 
 DEFAULT_PORT = 80
-DEFAULT_TIMEOUT_S = 5.0
+# 10 s: an Auvra on a busy 2.4 GHz AP showed 3 s ping spikes and 5 s HTTP
+# answers during the 0.10 e2e; at 5 s the command succeeded but HA reported a
+# failure.
+DEFAULT_TIMEOUT_S = 10.0
 
 # Polling intervals — water levels change slowly so 30s is plenty. Real-time
 # push lands in v0.2.0 once firmware Phase 1.3 ships the WebSocket endpoint.
@@ -34,6 +38,9 @@ DEVICE_KIND_PRESENCE = "presence"
 # pump. Polled from /api/switches (NOT the tank device list); the hub runs the
 # pump automation and HA exposes manual control + telemetry.
 DEVICE_KIND_SWITCH = "switch"
+# Auvra — AirPlay 2 streamer. Standalone hub (product="auvra") presenting one
+# device of this kind (id=1): transport, volume, now-playing + artwork.
+DEVICE_KIND_SPEAKER = "speaker"
 
 # Config keys
 CONF_HUB_ID = "hub_id"
@@ -49,11 +56,15 @@ CONNECTION_USB = "usb"
 # single integration shows the right name for each Techposts product.
 MODEL_HUB_TANKSYNC = "TankSync Hub"
 MODEL_HUB_AMBISENSE = "AmbiSense Hub"
+MODEL_HUB_AUVRA = "Auvra"
 MODEL_HUB_GENERIC = "SmartGhar Hub"
 
 MODEL_TANK = "TankSync TX (Tank)"
 MODEL_PRESENCE = "AmbiSense Sensor"
 MODEL_SWITCH = "SmartGhar Smart Switch"
+# Only used if an Auvra ever reports topology="hub"; standalone collapses the
+# speaker onto the hub card, whose model comes from hub_model_for_product().
+MODEL_SPEAKER = "Auvra"
 
 
 def hub_model_for_product(product: str | None) -> str:
@@ -65,4 +76,6 @@ def hub_model_for_product(product: str | None) -> str:
         return MODEL_HUB_TANKSYNC
     if product == "ambisense":
         return MODEL_HUB_AMBISENSE
+    if product == "auvra":
+        return MODEL_HUB_AUVRA
     return MODEL_HUB_GENERIC

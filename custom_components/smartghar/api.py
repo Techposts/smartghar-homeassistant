@@ -154,6 +154,29 @@ class SmartGharHubClient:
         """Edit one or more device config fields. Maps to PUT /api/v1/devices/<id>."""
         return await self._put(f"/api/v1/devices/{device_id}", fields)
 
+    async def device_command(
+        self, device_id: int, cmd: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
+        """Send a momentary command to a device. POST /api/v1/devices/<id>/command
+        with body {"cmd": <cmd>, **params}; the device answers {"ok": bool}.
+
+        Used by the Auvra speaker for transport (play / pause / play_pause /
+        next / previous / stop) and power (standby / wake). Transport commands
+        are relayed to the connected AirPlay sender and come back ok:false
+        when no sender is connected — that is a no-op, not an error.
+
+        Schema 1.2 adds play_url {url, title?, announce?, volume?},
+        select_source {source}, radio_play {station_id}, radio_next and
+        radio_prev; their parameters travel in `params`."""
+        body: dict[str, Any] = {**(params or {}), "cmd": cmd}
+        return await self._post(f"/api/v1/devices/{device_id}/command", body)
+
+    async def get_radio_stations(self) -> Any:
+        """Auvra radio stations (schema 1.2, capability `radio`).
+        GET /api/v1/radio/stations -> [{id, name, url, codec?, bitrate?}].
+        Returned raw; speaker_logic.radio_stations() normalises it."""
+        return await self._get("/api/v1/radio/stations")
+
     # ── Smart Switch (DEV_SWITCH) — polled separately from tanks ──────────────
     async def get_switches(self) -> list[dict[str, Any]]:
         """Paired Smart Switches with telemetry + pump rule. GET /api/switches.

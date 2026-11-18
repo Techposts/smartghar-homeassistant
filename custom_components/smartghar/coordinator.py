@@ -52,8 +52,12 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._ws_connected: bool = False
         self._ws_path: str | None = None
         self._stop = False
+        # Bumped on every applied WS snapshot/event. A poll that started
+        # before a push landed must not overwrite the pushed device state.
+        self._ws_generation = 0
 
     async def _async_update_data(self) -> dict[str, Any]:
+        generation = self._ws_generation
         try:
             info, devices = await asyncio.gather(
                 self.client.get_info(),
@@ -87,6 +91,12 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             switches = await self.client.get_switches()
         except SmartGharApiError as err:
             _LOGGER.debug("Switches unavailable on hub %s: %s", self.hub_id, err)
+
+        if generation != self._ws_generation and self.data:
+            # A WS push arrived while this poll was in flight (typically the
+            # refresh after a command: the GET is answered before the device
+            # has acted, the push right after). The push is newer; keep it.
+            devices = self.data.get("devices", devices)
 
         return {
             "info": info,
@@ -261,10 +271,12 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         if kind == "snapshot":
+            self._ws_generation += 1
             self._apply_snapshot(msg)
             return
 
         if kind == "event":
+            self._ws_generation += 1
             self._apply_event(msg)
             return
 
@@ -281,6 +293,10 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for key in ("uptime_s", "wifi_rssi"):
             if key in hub_dynamic:
                 new_info[key] = hub_dynamic[key]
+        # Auvra 0.10 pushes its capabilities on every snapshot, so a feature
+        # switched off (streams) drops at once instead of on the next poll.
+        if isinstance(hub_dynamic.get("capabilities"), list):
+            new_info["capabilities"] = list(hub_dynamic["capabilities"])
         if "ota_available" in hub_dynamic:
             ota = {**(new_info.get("ota") or {})}
             ota["available"] = (
@@ -288,10 +304,12 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ) or None
             new_info["ota"] = ota
 
+        # Keep every polled block (led, buzzer, switches): dropping them here
+        # made buzzer entities flap unavailable between polls.
         new_data = {
+            **self.data,
             "info": new_info,
             "devices": msg.get("devices", self.data.get("devices", [])),
-            "led": self.data.get("led", {}),
         }
         self.async_set_updated_data(new_data)
 

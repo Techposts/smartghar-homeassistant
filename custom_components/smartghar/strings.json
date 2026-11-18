@@ -113,6 +113,24 @@
       },
       "tank_lora_power": {
         "name": "LoRa TX power"
+      },
+      "max_volume": {
+        "name": "Max volume"
+      },
+      "speaker_offset": {
+        "name": "Speaker offset"
+      },
+      "bass": {
+        "name": "Bass"
+      },
+      "treble": {
+        "name": "Treble"
+      },
+      "announce_min_volume": {
+        "name": "Announcement minimum volume"
+      },
+      "announce_duck_db": {
+        "name": "Announcement ducking"
       }
     },
     "button": {
@@ -158,11 +176,41 @@
     "switch": {
       "buzzer_enabled": {
         "name": "Buzzer alerts"
+      },
+      "night": {
+        "name": "Night mode"
+      },
+      "loudness": {
+        "name": "Loudness"
+      },
+      "streams": {
+        "name": "Radio and streams"
       }
     },
     "select": {
       "buzzer_volume": {
         "name": "Buzzer volume"
+      },
+      "channel": {
+        "name": "Channel",
+        "state": {
+          "stereo": "Stereo",
+          "left": "Left",
+          "right": "Right",
+          "mono": "Mono"
+        }
+      },
+      "eq_preset": {
+        "name": "EQ preset",
+        "state": {
+          "flat": "Flat",
+          "bass": "Bass",
+          "vocal": "Vocal",
+          "bookshelf": "Bookshelf",
+          "soundbar": "Soundbar",
+          "night": "Night",
+          "custom": "Custom"
+        }
       }
     },
     "event": {

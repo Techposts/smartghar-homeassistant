@@ -12,7 +12,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.const import CONF_HOST, Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
@@ -26,6 +26,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import SmartGharCoordinator
+from .speaker_logic import capabilities
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ PLATFORMS: list[Platform] = [
     Platform.SWITCH,
     Platform.SELECT,
     Platform.UPDATE,
+    Platform.MEDIA_PLAYER,
 ]
 
 
@@ -190,6 +192,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Entities are created from /api/v1/info `capabilities` (Auvra schema
+    # 1.2). When they change (firmware OTA, a feature setting toggled), reload
+    # the entry so entities appear or go away.
+    caps_at_setup = capabilities(coordinator.info)
+    reload_scheduled = False
+
+    @callback
+    def _check_capabilities() -> None:
+        nonlocal reload_scheduled
+        if reload_scheduled or not coordinator.last_update_success:
+            return
+        if capabilities(coordinator.info) != caps_at_setup:
+            reload_scheduled = True
+            _LOGGER.info(
+                "Hub %s capabilities changed (%s -> %s); reloading",
+                hub_id, sorted(caps_at_setup), sorted(capabilities(coordinator.info)),
+            )
+            hass.config_entries.async_schedule_reload(entry.entry_id)
+
+    entry.async_on_unload(coordinator.async_add_listener(_check_capabilities))
 
     # Start the WebSocket push channel after platforms are wired up so
     # entities exist by the time the first snapshot arrives.

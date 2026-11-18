@@ -1,0 +1,112 @@
+blueprint:
+  name: SmartGhar — TankSync tank full, announce on Auvra
+  description: >
+    Speak an announcement on an Auvra speaker when a TankSync tank reaches
+    its full level. Auvra ducks whatever is playing (AirPlay or radio),
+    speaks the message on top and then restores the music by itself.
+
+    Needs Auvra firmware with announcements (Auvra 0.10.0 or later) and any
+    text-to-speech service (Google Translate TTS is free and needs no
+    account).
+
+    To install: in HA, go to Settings → Automations & scenes → Blueprints,
+    click "Import Blueprint", paste the URL of this file from the SmartGhar
+    GitHub repo, and create an automation from it.
+  domain: automation
+  source_url: https://github.com/Techposts/smartghar-homeassistant/blob/main/blueprints/automation/smartghar/tank-full-announce-auvra.yaml
+  input:
+    tank_sensor:
+      name: Tank level sensor
+      description: The TankSync tank's "Level" sensor (percent).
+      selector:
+        entity:
+          filter:
+            - integration: smartghar
+              domain: sensor
+    full_pct:
+      name: Full at (%)
+      description: Announce when the level rises above this value.
+      default: 95
+      selector:
+        number:
+          min: 50
+          max: 100
+          step: 1
+          unit_of_measurement: '%'
+    speakers:
+      name: Auvra speaker(s)
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: smartghar
+              domain: media_player
+    tts_engine:
+      name: Text-to-speech engine
+      description: For example tts.google_translate_en_com.
+      selector:
+        entity:
+          filter:
+            - domain: tts
+    message:
+      name: Message
+      description: What Auvra says. {tank} is replaced with the tank's name.
+      default: "{tank} is full. You can switch off the pump."
+      selector:
+        text:
+    language:
+      name: Language (optional)
+      description: TTS language code, for example en or hi. Leave empty for the engine's default.
+      default: ""
+      selector:
+        text:
+    cooldown_minutes:
+      name: Cooldown (minutes)
+      description: Don't announce again within this window.
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 720
+          step: 5
+          unit_of_measurement: min
+
+mode: single
+max_exceeded: silent
+
+variables:
+  message_template: !input message
+  language: !input language
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input tank_sensor
+    above: !input full_pct
+    for: "00:00:30"   # debounce: the level must stay up for 30 s
+
+actions:
+  - variables:
+      tank_name: >
+        {{ (state_attr(trigger.entity_id, 'friendly_name') or 'The tank')
+           | replace(' Level', '') }}
+      spoken: "{{ message_template | replace('{tank}', tank_name) }}"
+  - if:
+      - condition: template
+        value_template: "{{ language | length > 0 }}"
+    then:
+      - action: tts.speak
+        target:
+          entity_id: !input tts_engine
+        data:
+          media_player_entity_id: !input speakers
+          message: "{{ spoken }}"
+          language: "{{ language }}"
+    else:
+      - action: tts.speak
+        target:
+          entity_id: !input tts_engine
+        data:
+          media_player_entity_id: !input speakers
+          message: "{{ spoken }}"
+  - delay:
+      minutes: !input cooldown_minutes
