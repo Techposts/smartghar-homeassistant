@@ -101,3 +101,12 @@ def setup_auvra(
         return entry
 
     return _setup
+
+
+@pytest.fixture(autouse=True)
+def no_satellite_socket():
+    """The satellite's connect loop would open a real TCP socket to the unit."""
+    with patch(
+        "custom_components.smartghar.assist_satellite.SmartGharAssistSatellite.start_satellite"
+    ):
+        yield
