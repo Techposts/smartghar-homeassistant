@@ -213,6 +213,21 @@ Bench (Ravi, one real unit, after review; not done by this change):
 4. "What is the main tank level?" and "when was the tank last filled?" answer in local time.
 5. Untick Voice-ready and confirm exposure returns to how it was.
 
+## As built (differences from the plan above)
+
+- The satellite connects to the integration's stored host and `voice.port` (default 10700). A real localhost Wyoming server
+  test covers `run-satellite` then `describe`; the rest of the loop is core's, with timers forwarded as `timer-*` events.
+- `voice_ready.py` also keeps Assist away from the settings the box cannot undo by voice: microphone mute, voice on/off,
+  Talk, listening tone, echo cancellation and the advertising switch are set to not-exposed on first apply (HA exposes
+  switches and buttons by default) and restored on untick. The ledger records their previous state.
+- `wyoming_advertise` is turned off whenever the satellite option is on and the unit reports it on (once; remembered in the
+  ledger). It is turned back on when the option is unticked or the entry is removed.
+- The Options flow is the only place for the two checkboxes and the arrival times; the add flow is unchanged (both options
+  default ON when missing).
+- Sensors: `usage_sensor.py` (used today / week with restore, last fill with restore, next arrival). A rise of 3 percent or
+  more counts as a fill.
+- Not built: Hindi pipeline, a firmware `voice.port` field, the unified app.
+
 ## Rollback
 
 - Per feature: the Options checkboxes above.

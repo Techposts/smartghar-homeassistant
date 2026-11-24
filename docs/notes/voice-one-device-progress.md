@@ -12,10 +12,13 @@ Run: `ha-test/bin/python -m pytest -q` and `ha-test/bin/ruff check custom_compon
 |---|---|
 | 0 ruff baseline (ruff.toml, imports sorted) | done |
 | 1 design doc | done |
-| 2 api + coordinator voice block, pure logic | |
-| 3 satellite entity + Wyoming client | |
-| 4 settings entities (switch / select / number / button) | |
-| 5 migration: advertise off, repair issue, fix flow | |
-| 6 voice-ready: exposure ledger, aliases, options flow | |
-| 7 TankSync voice sensors (used today/week, last fill, next arrival) | |
-| 8 translations (en, hi), README, CHANGELOG | |
+| 2 api + coordinator voice block, pure logic | done |
+| 3 satellite entity + Wyoming client | done (localhost wire test) |
+| 4 settings entities (switch / select / number / button) | done |
+| 5 migration: advertise off, repair issue, fix flow | done |
+| 6 voice-ready: exposure ledger, aliases, options flow | done |
+| 7 TankSync voice sensors (used today/week, last fill, next arrival) | done |
+| 8 translations (en, hi), README, CHANGELOG, NOTICE | done |
+
+Result: 97 tests pass, ruff clean. Not done: bench test with a real unit (design doc, Bench section), manifest version bump,
+push, release. Decisions for Ravi are in the design doc (Decisions for Ravi).
