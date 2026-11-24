@@ -14,8 +14,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DEVICE_KIND_TANK, DOMAIN, MODEL_TANK
-from .device_info import subdevice_device_info
 from .coordinator import SmartGharCoordinator
+from .device_info import subdevice_device_info
 
 # Hub firmware caps tank names at TX_NAME_MAX 25 (24 chars + NUL) on the
 # S3/DevKit hubs; older C3 hubs cap at 15 and sanitize/truncate server-side.

@@ -9,7 +9,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from .conftest import calls
-from .fixtures import HUB_ID, V12_INFO, v12_devices
+from .fixtures import (  # ANNOUNCE_CONFIG: rc7 as built: streams true, 8, 15
+    HUB_ID,
+    V12_INFO,
+    v12_devices,
+)
+from .fixtures import V12_CONFIG as ANNOUNCE_CONFIG
 
 
 def _eid(hass: HomeAssistant, domain: str, suffix: str) -> str:
@@ -118,7 +123,6 @@ async def test_rejected_key_raises(hass, setup_auvra, aioclient_mock) -> None:
         )
 
 
-from .fixtures import V12_CONFIG as ANNOUNCE_CONFIG  # rc7 as built: streams true, 8, 15
 
 
 async def test_announce_settings_and_streams(hass, setup_auvra, aioclient_mock) -> None:

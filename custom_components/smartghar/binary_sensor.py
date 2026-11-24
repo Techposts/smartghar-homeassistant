@@ -23,9 +23,9 @@ from .const import (
     MODEL_PRESENCE,
     MODEL_TANK,
 )
-from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info, switch_device_info
+from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
 
 # Smart Switch fault bits (matches sw_fault in hub firmware): (key, bit, icon).
 SWITCH_FAULTS: tuple[tuple[str, int, str], ...] = (

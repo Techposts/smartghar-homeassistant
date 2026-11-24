@@ -16,10 +16,10 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -31,11 +31,11 @@ from .const import (
     DOMAIN,
     MODEL_SPEAKER,
 )
+from .coordinator import SmartGharCoordinator
+from .device_info import hub_device_info, subdevice_device_info, switch_device_info
 from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
 from .speaker_entity import SmartGharSpeakerConfigEntity, speaker_ids_with
 from .speaker_logic import CAP_EQ
-from .coordinator import SmartGharCoordinator
-from .device_info import hub_device_info, subdevice_device_info, switch_device_info
 
 
 async def async_setup_entry(

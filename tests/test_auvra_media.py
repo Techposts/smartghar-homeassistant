@@ -18,12 +18,14 @@ from homeassistant.components.media_player import (
     ATTR_MEDIA_EXTRA,
     ATTR_SOUND_MODE,
     ATTR_SOUND_MODE_LIST,
-    DOMAIN as MP_DOMAIN,
     SERVICE_BROWSE_MEDIA,
     SERVICE_PLAY_MEDIA,
     SERVICE_SELECT_SOUND_MODE,
     SERVICE_SELECT_SOURCE,
     MediaPlayerEntityFeature,
+)
+from homeassistant.components.media_player import (
+    DOMAIN as MP_DOMAIN,
 )
 from homeassistant.components.media_source import PlayMedia
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_SUPPORTED_FEATURES

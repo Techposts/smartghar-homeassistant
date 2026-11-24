@@ -1,6 +1,7 @@
 """The Auvra blueprints load, validate and call the right services."""
 from __future__ import annotations
 
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -9,13 +10,12 @@ from homeassistant.components.automation.config import AUTOMATION_BLUEPRINT_SCHE
 from homeassistant.components.blueprint import models
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
+from homeassistant.util import dt as dt_util
 from homeassistant.util.yaml import load_yaml_dict
 from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
     async_mock_service,
 )
-from homeassistant.util import dt as dt_util
-from datetime import timedelta
 
 BP_DIR = Path(__file__).parent.parent / "blueprints" / "automation" / "smartghar"
 SPEAKER = "media_player.auvra_bedroom"

@@ -7,8 +7,6 @@ may miss but most tanker/municipal fills are slow enough to catch.
 """
 from __future__ import annotations
 
-from typing import Any
-
 from homeassistant.components.event import EventEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -17,8 +15,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DEVICE_KIND_TANK, DOMAIN, MODEL_TANK
-from .device_info import subdevice_device_info
 from .coordinator import SmartGharCoordinator
+from .device_info import subdevice_device_info
 
 # Minimum jump in % between polls to count as a "fill" rather than noise.
 FILL_THRESHOLD_PCT = 5.0

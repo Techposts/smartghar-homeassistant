@@ -25,7 +25,6 @@ from .device_info import hub_device_info
 from .speaker_entity import SmartGharSpeakerConfigEntity, speaker_ids_with
 from .speaker_logic import CAP_EQ, CHANNEL_OPTIONS, current_eq_preset, eq_preset_ids
 
-
 # Profile labels must match the firmware enum (buzzer_profile_t in buzzer.h):
 #   0 = BUZZ_PROFILE_QUIET
 #   1 = BUZZ_PROFILE_STANDARD

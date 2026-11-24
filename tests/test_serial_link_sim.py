@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "custom_components", "smartghar"))
-from serial_link import SerialCoordinatorLink, SerialCommandError  # noqa: E402
+from serial_link import SerialCommandError, SerialCoordinatorLink  # noqa: E402
 
 SIM = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser(
     "~/Projects/TankSync/cloud/scripts/coord-hub-sim.py")

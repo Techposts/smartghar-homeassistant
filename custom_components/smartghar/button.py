@@ -5,17 +5,24 @@
 """
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from homeassistant.exceptions import HomeAssistantError
-from .const import DEVICE_KIND_TANK, DOMAIN, MODEL_TANK
-from .const import CONF_CONNECTION, CONNECTION_USB  # serial coordinator entries
+from .const import (  # serial coordinator entries
+    CONF_CONNECTION,
+    CONNECTION_USB,
+    DEVICE_KIND_TANK,
+    DOMAIN,
+    MODEL_TANK,
+)
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info, switch_device_info
 

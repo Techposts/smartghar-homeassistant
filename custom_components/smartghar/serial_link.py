@@ -18,7 +18,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any, Callable
 
 _LOGGER = logging.getLogger(__name__)
 

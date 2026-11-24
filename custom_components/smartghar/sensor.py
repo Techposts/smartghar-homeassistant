@@ -33,21 +33,21 @@ from homeassistant.const import (
     UnitOfVolume,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers import entity_platform
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import (
+    CONF_CONNECTION,
+    CONNECTION_USB,
     DEVICE_KIND_PRESENCE,
     DEVICE_KIND_TANK,
     DOMAIN,
     MODEL_PRESENCE,
     MODEL_TANK,
 )
-from homeassistant.util import dt as dt_util
-
-from .const import CONF_CONNECTION, CONNECTION_USB
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info, switch_device_info
 from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
