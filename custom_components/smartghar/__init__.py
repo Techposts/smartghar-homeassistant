@@ -29,6 +29,11 @@ from .const import (
 )
 from .coordinator import SmartGharCoordinator
 from .speaker_logic import capabilities
+from .voice_ready import (
+    async_restore_advertise,
+    async_revert_voice_ready,
+    async_sync_voice,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -221,7 +226,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # entities exist by the time the first snapshot arrives.
     coordinator.start_ws()
 
+    # Voice-ready exposure and the Wyoming advertising switch follow the
+    # entry's options; any options change reloads the entry and re-syncs.
+    await async_sync_voice(hass, entry, coordinator)
+    entry.async_on_unload(entry.add_update_listener(_options_updated))
+
     return True
+
+
+async def _options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Give back what we changed: Assist exposure, aliases, stock Wyoming discovery."""
+    await async_revert_voice_ready(hass, entry.entry_id)
+    if entry.data.get(CONF_CONNECTION) == CONNECTION_USB:
+        return
+    session = async_get_clientsession(hass)
+    client = SmartGharHubClient(
+        host=entry.data[CONF_HOST], session=session, token=entry.data.get(CONF_LOCAL_TOKEN)
+    )
+    hub_id = entry.unique_id or entry.data.get("hub_id", "unknown")
+    coordinator = SmartGharCoordinator(hass, client, hub_id)
+    await async_restore_advertise(hass, coordinator)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

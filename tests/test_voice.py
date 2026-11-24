@@ -5,6 +5,7 @@ from datetime import datetime, time
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+import pytest
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -25,6 +26,12 @@ VOICE = {
 
 def _state(**over):
     return {"voice": {**VOICE, **over}}
+
+
+@pytest.fixture(autouse=True)
+def _expose_nothing_by_default(hass, core_loaded):
+    """So a test sees what voice-ready itself does, not HA's per-domain defaults."""
+    hass.data["homeassistant.exposed_entities"].async_set_expose_new_entities("conversation", False)
 
 
 def _eid(hass, platform, suffix):
@@ -105,6 +112,7 @@ async def test_voice_entities_and_writes(hass, setup_auvra, aioclient_mock):
         {"entity_id": _eid(hass, "number", "duck_db"), "value": 20}, blocking=True,
     )
     assert calls(aioclient_mock, "POST", "/api/set") == [
+        {"wyoming_advertise": False},  # setup: stop stock Wyoming discovery
         {"mic_mute": True}, {"voice_tone_style": "C"}, {"duck_db": 20},
     ]
 
@@ -115,7 +123,6 @@ async def test_optional_aec_appears_when_reported(hass, setup_auvra):
 
 
 async def test_rejected_key_raises(hass, setup_auvra, aioclient_mock):
-    import pytest
     from homeassistant.exceptions import HomeAssistantError
 
     await setup_auvra(V12_INFO, v12_devices(), state=_state())
@@ -183,3 +190,126 @@ async def test_repair_flow_removes_only_on_confirm(hass, setup_auvra):
     await hass.async_block_till_done()
     assert hass.config_entries.async_get_entry(stock.entry_id) is None
     assert ir.async_get(hass).async_get_issue(DOMAIN, iid) is None
+
+
+# ------------------------------------------------------------- advertising
+
+async def test_advertise_turned_off_once_and_restored_on_untick(hass, setup_auvra, aioclient_mock):
+    entry = await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    assert calls(aioclient_mock, "POST", "/api/set") == [{"wyoming_advertise": False}]
+
+    # untick "Voice assistant in this integration": advertising is given back
+    hass.config_entries.async_update_entry(
+        entry, options={"voice_satellite": False}
+    )
+    await hass.async_block_till_done()
+    assert calls(aioclient_mock, "POST", "/api/set")[-1] == {"wyoming_advertise": True}
+
+
+async def test_advertise_left_alone_when_already_off(hass, setup_auvra, aioclient_mock):
+    await setup_auvra(V12_INFO, v12_devices(), state=_state(advertise=False))
+    assert calls(aioclient_mock, "POST", "/api/set") == []
+
+
+# -------------------------------------------------------------- voice-ready
+
+def _speaker_entity(hass):
+    reg = er.async_get(hass)
+    return next(e for e in reg.entities.values() if e.domain == "media_player")
+
+
+async def test_voice_ready_exposes_speaker_with_aliases(hass, setup_auvra):
+    from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+
+    await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    ent = _speaker_entity(hass)
+    assert async_should_expose(hass, "conversation", ent.entity_id)
+    assert {"speaker", "Auvra", "Auvra Bedroom"} <= set(ent.aliases)
+
+
+async def test_voice_ready_never_exposes_settings(hass, setup_auvra):
+    from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+
+    await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    assert not async_should_expose(hass, "conversation", _eid(hass, "switch", "mic_mute"))
+
+
+async def test_voice_ready_untick_reverts_and_keeps_user_aliases(hass, setup_auvra):
+    from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+
+    entry = await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    reg = er.async_get(hass)
+    eid = _speaker_entity(hass).entity_id
+    reg.async_update_entity(eid, aliases=set(reg.async_get(eid).aliases) | {"my box"})
+
+    hass.config_entries.async_update_entry(entry, options={"voice_ready": False})
+    await hass.async_block_till_done()
+
+    ent = reg.async_get(eid)
+    assert not async_should_expose(hass, "conversation", eid)
+    assert {a for a in ent.aliases if isinstance(a, str)} == {"my box"}
+
+
+async def test_voice_ready_off_from_the_start_touches_nothing(hass, setup_auvra):
+    from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+
+    await setup_auvra(V12_INFO, v12_devices(), state=_state(), options={"voice_ready": False})
+    ent = _speaker_entity(hass)
+    assert not async_should_expose(hass, "conversation", ent.entity_id)
+    assert not [a for a in ent.aliases if isinstance(a, str)]
+
+
+async def test_user_unexpose_survives_reload(hass, setup_auvra):
+    from homeassistant.components.homeassistant.exposed_entities import (
+        async_expose_entity,
+        async_should_expose,
+    )
+
+    entry = await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    eid = _speaker_entity(hass).entity_id
+    async_expose_entity(hass, "conversation", eid, False)  # the user's choice
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert not async_should_expose(hass, "conversation", eid)
+
+
+async def test_removal_reverts_and_restores_advertise(hass, setup_auvra, aioclient_mock):
+    from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+
+    entry = await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    eid = _speaker_entity(hass).entity_id
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+    assert not async_should_expose(hass, "conversation", eid)
+    assert calls(aioclient_mock, "POST", "/api/set")[-1] == {"wyoming_advertise": True}
+
+
+# ------------------------------------------------------------- options flow
+
+async def test_options_flow_defaults_on(hass, setup_auvra):
+    entry = await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == "form"
+    keys = {str(k): k.default() for k in result["data_schema"].schema}
+    assert keys == {"voice_ready": True, "voice_satellite": True}
+    done = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"voice_ready": False, "voice_satellite": True}
+    )
+    assert done["type"] == "create_entry"
+    await hass.async_block_till_done()
+    assert entry.options["voice_ready"] is False
+
+
+async def test_default_exposed_settings_are_hidden_from_assist(hass, setup_auvra):
+    """HA exposes switches by default; the mic mute must not be voice-controllable."""
+    from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+
+    hass.data["homeassistant.exposed_entities"].async_set_expose_new_entities("conversation", True)
+    entry = await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    mute = _eid(hass, "switch", "mic_mute")
+    assert not async_should_expose(hass, "conversation", mute)
+    assert async_should_expose(hass, "conversation", _speaker_entity(hass).entity_id)
+    # untick: back to HA's default for them
+    hass.config_entries.async_update_entry(entry, options={"voice_ready": False})
+    await hass.async_block_till_done()
+    assert async_should_expose(hass, "conversation", mute)

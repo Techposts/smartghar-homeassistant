@@ -15,6 +15,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
@@ -38,6 +39,12 @@ from .serial_link import (
     SerialLinkError,
     SerialProtocolMismatch,
 )
+from .voice_logic import voice_supported
+from .voice_options import (
+    CONF_ARRIVAL_TIMES,
+    CONF_VOICE_READY,
+    CONF_VOICE_SATELLITE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,6 +53,11 @@ class SmartGharConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for SmartGhar."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> SmartGharOptionsFlow:
+        return SmartGharOptionsFlow()
 
     def __init__(self) -> None:
         self._discovered_host: str | None = None
@@ -252,3 +264,29 @@ class SmartGharConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
             errors=errors,
         )
+
+
+class SmartGharOptionsFlow(config_entries.OptionsFlow):
+    """Voice options. Both checkboxes default ON; unticking undoes them."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+
+        coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
+        opts = self.config_entry.options
+        schema: dict[Any, Any] = {
+            vol.Optional(
+                CONF_VOICE_READY, default=opts.get(CONF_VOICE_READY, True)
+            ): bool,
+        }
+        info = getattr(coordinator, "info", {}) or {}
+        if coordinator is not None and voice_supported(getattr(coordinator, "voice", None)):
+            schema[
+                vol.Optional(CONF_VOICE_SATELLITE, default=opts.get(CONF_VOICE_SATELLITE, True))
+            ] = bool
+        if info.get("product") == "tanksync":
+            schema[
+                vol.Optional(CONF_ARRIVAL_TIMES, default=opts.get(CONF_ARRIVAL_TIMES, ""))
+            ] = str
+        return self.async_show_form(step_id="init", data_schema=vol.Schema(schema))
