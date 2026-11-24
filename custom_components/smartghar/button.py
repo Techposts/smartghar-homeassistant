@@ -25,6 +25,10 @@ from .const import (  # serial coordinator entries
 )
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info, switch_device_info
+from .voice_entity import (
+    VoiceTalkButton,
+    voice_entities_wanted,
+)
 
 
 async def async_setup_entry(
@@ -49,6 +53,8 @@ async def async_setup_entry(
     for sw in coordinator.switches:
         if "address" in sw:
             entities.append(SmartGharSwitchResumeAuto(coordinator, sw["address"]))
+    if voice_entities_wanted(coordinator):
+        entities.append(VoiceTalkButton(coordinator))
     async_add_entities(entities)
 
 

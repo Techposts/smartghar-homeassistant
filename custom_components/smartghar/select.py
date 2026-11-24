@@ -24,6 +24,14 @@ from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info
 from .speaker_entity import SmartGharSpeakerConfigEntity, speaker_ids_with
 from .speaker_logic import CAP_EQ, CHANNEL_OPTIONS, current_eq_preset, eq_preset_ids
+from .voice_entity import (
+    SmartGharPipelineSelect,
+    SmartGharVadSelect,
+    VoiceSelect,
+    voice_entities_wanted,
+    voice_settings_for,
+)
+from .voice_options import voice_satellite_enabled
 
 # Profile labels must match the firmware enum (buzzer_profile_t in buzzer.h):
 #   0 = BUZZ_PROFILE_QUIET
@@ -45,6 +53,10 @@ async def async_setup_entry(
         entities.append(SmartGharSpeakerChannel(coordinator, device_id))
     for device_id in speaker_ids_with(coordinator, CAP_EQ):
         entities.append(SmartGharSpeakerEqPreset(coordinator, device_id))
+    entities.extend(VoiceSelect(coordinator, s) for s in voice_settings_for(coordinator, "select"))
+    if voice_entities_wanted(coordinator) and voice_satellite_enabled(entry):
+        entities.append(SmartGharPipelineSelect(hass, coordinator))
+        entities.append(SmartGharVadSelect(hass, coordinator))
     async_add_entities(entities)
 
 

@@ -29,6 +29,10 @@ from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info
 from .speaker_entity import SmartGharSpeakerConfigEntity, speaker_ids_with
 from .speaker_logic import CAP_ANNOUNCE, CAP_EQ, eq_range_db
+from .voice_entity import (
+    VoiceNumber,
+    voice_settings_for,
+)
 
 
 async def async_setup_entry(
@@ -61,6 +65,7 @@ async def async_setup_entry(
         entities.append(SmartGharSpeakerAnnounceMinVolume(coordinator, device_id))
     for device_id in speaker_ids_with(coordinator, CAP_ANNOUNCE, "announce_duck_db"):
         entities.append(SmartGharSpeakerAnnounceDuck(coordinator, device_id))
+    entities.extend(VoiceNumber(coordinator, s) for s in voice_settings_for(coordinator, "number"))
     async_add_entities(entities)
 
 

@@ -26,6 +26,14 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
 
 
 @pytest.fixture(autouse=True)
+async def core_loaded(hass: HomeAssistant) -> None:
+    """The Assist stack (a dependency) expects the `homeassistant` component."""
+    from homeassistant.setup import async_setup_component
+
+    assert await async_setup_component(hass, "homeassistant", {})
+
+
+@pytest.fixture(autouse=True)
 def no_websocket():
     """info.stream.ws_path would start a real WS loop to the device."""
     with patch(

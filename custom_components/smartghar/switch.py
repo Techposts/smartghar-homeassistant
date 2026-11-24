@@ -36,6 +36,10 @@ from .device_info import hub_device_info, subdevice_device_info, switch_device_i
 from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
 from .speaker_entity import SmartGharSpeakerConfigEntity, speaker_ids_with
 from .speaker_logic import CAP_EQ
+from .voice_entity import (
+    VoiceSwitch,
+    voice_settings_for,
+)
 
 
 async def async_setup_entry(
@@ -71,6 +75,7 @@ async def async_setup_entry(
     # because turning it off removes the radio/url_play/announce capabilities.
     for device_id in speaker_ids_with(coordinator, None, "streams"):
         entities.append(SmartGharSpeakerStreams(coordinator, device_id))
+    entities.extend(VoiceSwitch(coordinator, s) for s in voice_settings_for(coordinator, "switch"))
     async_add_entities(entities)
 
 
