@@ -313,3 +313,120 @@ async def test_default_exposed_settings_are_hidden_from_assist(hass, setup_auvra
     hass.config_entries.async_update_entry(entry, options={"voice_ready": False})
     await hass.async_block_till_done()
     assert async_should_expose(hass, "conversation", mute)
+
+
+# ---------------------------------------------------------------- satellite
+
+def _satellite(hass):
+    from homeassistant.components.assist_satellite import DOMAIN as AS_DOMAIN
+
+    return hass.data[AS_DOMAIN].get_entity(_eid(hass, "assist_satellite", "satellite"))
+
+
+class _FakeClient:
+    def __init__(self):
+        self.events = []
+
+    async def write_event(self, event):
+        self.events.append(event)
+
+
+async def test_satellite_is_available_when_voice_on(hass, setup_auvra):
+    await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    assert hass.states.get(_eid(hass, "assist_satellite", "satellite")).state == "idle"
+
+
+async def test_satellite_unavailable_when_voice_off(hass, setup_auvra):
+    await setup_auvra(V12_INFO, v12_devices(), state=_state(enabled=False))
+    assert hass.states.get(_eid(hass, "assist_satellite", "satellite")).state == "unavailable"
+
+
+async def test_satellite_option_off_means_no_satellite(hass, setup_auvra):
+    await setup_auvra(
+        V12_INFO, v12_devices(), state=_state(), options={"voice_satellite": False}
+    )
+    assert _eid(hass, "assist_satellite", "satellite") is None
+    assert _eid(hass, "select", "pipeline") is None
+    assert _eid(hass, "switch", "mic_mute")  # settings entities stay
+
+
+async def test_pipeline_events_become_wyoming_events(hass, setup_auvra):
+    from homeassistant.components.assist_pipeline import PipelineEvent, PipelineEventType
+
+    await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    sat = _satellite(hass)
+    sat._client = _FakeClient()
+    sat.on_pipeline_event(PipelineEvent(PipelineEventType.STT_START, {"metadata": {"language": "en"}}))
+    sat.on_pipeline_event(PipelineEvent(PipelineEventType.STT_VAD_START, {"timestamp": 100}))
+    sat.on_pipeline_event(PipelineEvent(PipelineEventType.STT_VAD_END, {"timestamp": 900}))
+    sat.on_pipeline_event(PipelineEvent(PipelineEventType.STT_END, {"stt_output": {"text": "tank level"}}))
+    await hass.async_block_till_done()
+    assert [e.type for e in sat._client.events] == [
+        "transcribe", "voice-started", "voice-stopped", "transcript",
+    ]
+    assert sat._client.events[3].data["text"] == "tank level"
+
+
+async def test_timer_events_are_forwarded(hass, setup_auvra):
+    from unittest.mock import MagicMock
+
+    from homeassistant.components import intent
+
+    await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    sat = _satellite(hass)
+    sat._client = _FakeClient()
+    timer = MagicMock(id="t1", seconds=300, is_active=True, start_hours=None,
+                      start_minutes=5, start_seconds=None)
+    timer.name = "tea"
+    for kind in (intent.TimerEventType.STARTED, intent.TimerEventType.UPDATED,
+                 intent.TimerEventType.CANCELLED, intent.TimerEventType.FINISHED):
+        sat._handle_timer(kind, timer)
+    await hass.async_block_till_done()
+    assert [e.type for e in sat._client.events] == [
+        "timer-started", "timer-updated", "timer-cancelled", "timer-finished",
+    ]
+
+
+async def test_timer_handler_registered_for_the_auvra_device(hass, setup_auvra):
+    await setup_auvra(V12_INFO, v12_devices(), state=_state())
+    sat = _satellite(hass)
+    with patch(
+        "custom_components.smartghar.assist_satellite.intent.async_register_timer_handler",
+        return_value=lambda: None,
+    ) as reg:
+        sat._register_timer_handler()
+    assert reg.call_args.args[1] == sat.registry_entry.device_id
+
+
+@pytest.mark.real_satellite
+async def test_satellite_connects_and_speaks_wyoming(hass, setup_auvra, socket_enabled):
+    """A fake Wyoming satellite on localhost sees run-satellite, then describe."""
+    import asyncio
+    from unittest.mock import PropertyMock
+
+    from wyoming.event import async_read_event
+
+    seen: list[str] = []
+    got_two = asyncio.Event()
+
+    async def handle(reader, writer):
+        while len(seen) < 2:
+            ev = await async_read_event(reader)
+            if ev is None:
+                break
+            seen.append(ev.type)
+        got_two.set()
+        writer.close()
+
+    server = await asyncio.start_server(handle, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    with patch(
+        "custom_components.smartghar.assist_satellite.SmartGharAssistSatellite._host",
+        new_callable=PropertyMock, return_value="127.0.0.1",
+    ):
+        await setup_auvra(V12_INFO, v12_devices(), state=_state(port=port))
+        await asyncio.wait_for(got_two.wait(), 5)
+        await hass.config_entries.async_unload(hass.config_entries.async_entries(DOMAIN)[0].entry_id)
+        await hass.async_block_till_done()
+    server.close()
+    assert seen == ["run-satellite", "describe"]

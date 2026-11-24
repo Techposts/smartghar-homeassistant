@@ -45,6 +45,15 @@ class _TankWatcher(CoordinatorEntity[SmartGharCoordinator]):
         self._attr_unique_id = f"smartghar_{coordinator.hub_id}_tank_{tank_id}_{suffix}"
         self._baseline_pct: float | None = None
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # Seed from the current level so the first tick after a restart is not
+        # counted as a drain or a fill.
+        dev = self.coordinator.device_by_id(self._tank_id)
+        level = ((dev or {}).get("state") or {}).get("level_pct")
+        if level is not None:
+            self._baseline_pct = float(level)
+
     @property
     def device_info(self) -> DeviceInfo:
         dev = self.coordinator.device_by_id(self._tank_id) or {"kind": "tank", "id": self._tank_id}
