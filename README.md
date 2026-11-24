@@ -65,6 +65,14 @@ For details + troubleshooting, see the **[Installation page in the wiki →](htt
 
 For the full entity catalogue, see **[Entities Reference →](https://github.com/Techposts/smartghar-homeassistant/wiki/Entities-Reference)**.
 
+### Voice (Auvra with a microphone, added in the next release)
+
+The speaker's voice assistant is part of the same Auvra device (no second Wyoming device). Settings (follow-up, wake
+sensitivity, listening tone, ducking, microphone mute) are entities; push to talk is the **Talk** button.
+**Options > Voice-ready** (on by default) lets Assist answer "what is the main tank level?", "when was the tank last
+filled?" and "pause the speaker"; untick it to undo. If HA still has a stock Wyoming entry for the unit, a Repairs
+item offers to remove it. Design: `docs/design/AUVRA_VOICE_IN_HA.md`.
+
 ## Cross-product protocol
 
 All Techposts IoT products implement the same wire contract documented in the [SmartGhar protocol spec](https://github.com/Techposts/AmbiSense/blob/v6-idf-rewrite/docs/SMARTGHAR-PROTOCOL.md). Adding a new product (RidgeSync, etc.) to this integration is a small additive PR — new `DEVICE_KIND_*`, new entity classes, new dispatch case. No coordinator or config_flow changes.

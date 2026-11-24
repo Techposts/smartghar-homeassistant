@@ -1,0 +1,106 @@
+{
+  "entity": {
+    "sensor": {
+      "tank_used_today": {
+        "name": "आज खर्च हुआ पानी"
+      },
+      "tank_used_week": {
+        "name": "इस हफ्ते खर्च हुआ पानी"
+      },
+      "tank_last_fill": {
+        "name": "आखिरी बार भरी"
+      },
+      "next_water_arrival": {
+        "name": "पानी अगली बार कब आएगा"
+      }
+    },
+    "switch": {
+      "voice_enabled": {
+        "name": "वॉइस असिस्टेंट"
+      },
+      "mic_mute": {
+        "name": "माइक्रोफोन म्यूट"
+      },
+      "voice_tone": {
+        "name": "सुनने की आवाज़"
+      },
+      "voice_aec": {
+        "name": "इको कैंसलेशन"
+      },
+      "wyoming_advertise": {
+        "name": "स्टॉक Wyoming को दिखाएँ"
+      }
+    },
+    "select": {
+      "follow_up": {
+        "name": "फॉलो-अप",
+        "state": {
+          "off": "बंद",
+          "on": "चालू",
+          "question": "सिर्फ सवाल के बाद"
+        }
+      },
+      "wake_sens": {
+        "name": "वेक वर्ड संवेदनशीलता",
+        "state": {
+          "low": "कम",
+          "normal": "सामान्य",
+          "high": "ज़्यादा"
+        }
+      },
+      "tone_style": {
+        "name": "सुनने की आवाज़ की शैली"
+      },
+      "pipeline": {
+        "name": "असिस्टेंट",
+        "state": {
+          "preferred": "पसंदीदा"
+        }
+      },
+      "vad_sensitivity": {
+        "name": "बोलना खत्म होने की पहचान",
+        "state": {
+          "default": "सामान्य",
+          "aggressive": "तेज़",
+          "relaxed": "आराम से"
+        }
+      }
+    },
+    "number": {
+      "duck_db": {
+        "name": "संगीत धीमा करने की गहराई"
+      }
+    },
+    "button": {
+      "voice_talk": {
+        "name": "बोलें"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "वॉइस",
+        "description": "वॉइस-रेडी से Assist को पानी का स्तर, खर्च, आखिरी बार कब भरी, पंप और स्पीकर बोले जाने वाले नामों के साथ दिखते हैं। टिक हटाने पर सब पहले जैसा हो जाता है।",
+        "data": {
+          "voice_ready": "वॉइस-रेडी: Assist को यह डिवाइस दिखाएँ",
+          "voice_satellite": "इस इंटीग्रेशन में वॉइस असिस्टेंट",
+          "water_arrival_times": "पानी आने के समय (जैसे 06:30, 18:00)"
+        }
+      }
+    }
+  },
+  "issues": {
+    "stock_wyoming": {
+      "title": "{name} का अलग Wyoming डिवाइस अभी भी है",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "{name} के लिए एक ही डिवाइस",
+            "description": "स्टॉक Wyoming इंटीग्रेशन भी इस स्पीकर को चला रहा है, इसलिए दो डिवाइस दिखते हैं। Wyoming एंट्री हटाने के लिए सबमिट करें। फिर वॉइस असिस्टेंट SmartGhar डिवाइस पर दिखेगा। उसके बाद नए असिस्टेंट सेलेक्ट में अपना असिस्टेंट चुनें।"
+          }
+        }
+      }
+    }
+  }
+}

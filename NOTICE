@@ -1,0 +1,7 @@
+SmartGhar Home Assistant integration
+
+custom_components/smartghar/assist_satellite.py is adapted from
+homeassistant/components/wyoming/assist_satellite.py in Home Assistant core
+(https://github.com/home-assistant/core), Copyright the Home Assistant Authors,
+licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+Changes are listed in the file header.

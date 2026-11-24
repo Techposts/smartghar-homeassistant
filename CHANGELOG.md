@@ -2,6 +2,29 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## Unreleased — Auvra voice on the same device, voice-ready
+
+### Added
+
+- **Assist satellite on the Auvra device.** For an Auvra that reports a microphone (`/api/state` `voice.mic`), the
+  integration is the Wyoming client (adapted from HA core's Wyoming integration, Apache-2.0, see `NOTICE`): one device
+  holds the media player, the satellite, the pipeline and finished-speaking selects, and the voice settings. Timer
+  events are forwarded to the unit. Mute is the unit's own microphone mute. Needs `wyoming==1.10.2`.
+- **Voice settings**: switches Voice assistant, Microphone mute, Listening tone, Echo cancellation (when the firmware
+  has it), Show to stock Wyoming discovery; selects Follow-up, Wake word sensitivity, Listening tone style; number
+  Music ducking depth; button Talk (push to talk). Read from `/api/state`, written with `/api/set`.
+- **One device, no auto-delete**: the unit's `wyoming_advertise` is turned off so the stock Wyoming integration stops
+  discovering it. If a stock entry already drives the unit, the satellite waits and a Repairs issue offers to remove
+  that entry, only after confirmation. Removing the integration or unticking the option turns advertising back on.
+- **Voice-ready option** (Options, default on): exposes a curated set to Assist with spoken names (English and Hindi):
+  tank level and volume, water used today and this week, last fill, the pump, and the Auvra media player ("speaker",
+  "Auvra"). Mute, voice on/off and Talk are explicitly kept away from Assist. A ledger makes unticking restore the
+  previous exposure and remove only our aliases.
+- TankSync sensors **Water used today**, **Water used this week**, **Last filled** (a local-time phrase such as
+  "today at 2:30 PM", so a voice assistant does not read UTC) and an optional **Next water arrival** from times typed
+  in Options.
+- `translations/hi.json` for the new entities and options.
+
 ## v0.13.0 — Auvra media: play_media, announcements, radio, EQ (schema 1.2)
 
 Builds against the additive schema 1.2 of the v1 API (Auvra firmware 0.10.0). Every new feature and entity is

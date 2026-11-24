@@ -91,6 +91,18 @@
       },
       "switch_temperature": {
         "name": "Temperature"
+      },
+      "tank_used_today": {
+        "name": "Water used today"
+      },
+      "tank_used_week": {
+        "name": "Water used this week"
+      },
+      "tank_last_fill": {
+        "name": "Last filled"
+      },
+      "next_water_arrival": {
+        "name": "Next water arrival"
       }
     },
     "text": {
@@ -131,6 +143,9 @@
       },
       "announce_duck_db": {
         "name": "Announcement ducking"
+      },
+      "duck_db": {
+        "name": "Music ducking depth"
       }
     },
     "button": {
@@ -145,6 +160,9 @@
       },
       "switch_resume_auto": {
         "name": "Resume automation"
+      },
+      "voice_talk": {
+        "name": "Talk"
       }
     },
     "binary_sensor": {
@@ -185,6 +203,21 @@
       },
       "streams": {
         "name": "Radio and streams"
+      },
+      "voice_enabled": {
+        "name": "Voice assistant"
+      },
+      "mic_mute": {
+        "name": "Microphone mute"
+      },
+      "voice_tone": {
+        "name": "Listening tone"
+      },
+      "voice_aec": {
+        "name": "Echo cancellation"
+      },
+      "wyoming_advertise": {
+        "name": "Show to stock Wyoming discovery"
       }
     },
     "select": {
@@ -211,6 +244,39 @@
           "night": "Night",
           "custom": "Custom"
         }
+      },
+      "follow_up": {
+        "name": "Follow-up",
+        "state": {
+          "off": "Off",
+          "on": "On",
+          "question": "Only after a question"
+        }
+      },
+      "wake_sens": {
+        "name": "Wake word sensitivity",
+        "state": {
+          "low": "Low",
+          "normal": "Normal",
+          "high": "High"
+        }
+      },
+      "tone_style": {
+        "name": "Listening tone style"
+      },
+      "pipeline": {
+        "name": "Assistant",
+        "state": {
+          "preferred": "Preferred"
+        }
+      },
+      "vad_sensitivity": {
+        "name": "Finished speaking detection",
+        "state": {
+          "default": "Default",
+          "aggressive": "Aggressive",
+          "relaxed": "Relaxed"
+        }
       }
     },
     "event": {
@@ -221,6 +287,35 @@
             "state": {
               "fill_complete": "Fill complete"
             }
+          }
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Voice",
+        "description": "Voice-ready lets Assist see the water level, usage, last fill, pump and speaker, with spoken names. Unticking it puts exposure back the way it was.",
+        "data": {
+          "voice_ready": "Voice-ready: let Assist see this device",
+          "voice_satellite": "Voice assistant in this integration",
+          "water_arrival_times": "Water arrival times (for example 06:30, 18:00)"
+        },
+        "data_description": {
+          "voice_satellite": "Connects to the speaker's voice assistant here, so it is one device. Unticking gives the speaker back to the stock Wyoming integration."
+        }
+      }
+    }
+  },
+  "issues": {
+    "stock_wyoming": {
+      "title": "{name} still has a separate Wyoming device",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "One device for {name}",
+            "description": "The stock Wyoming integration also controls this speaker, which would make two devices. Submit to remove the Wyoming entry. The voice assistant then appears on the SmartGhar device. Choose your assistant in the new Assistant select afterwards."
           }
         }
       }
