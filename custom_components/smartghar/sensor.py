@@ -51,6 +51,12 @@ from .const import (
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info, switch_device_info
 from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
+from .usage_sensor import (
+    SmartGharNextArrival,
+    SmartGharTankLastFill,
+    SmartGharTankUsagePeriod,
+)
+from .voice_options import arrival_times
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -252,6 +258,15 @@ async def async_setup_entry(
         entities.append(SmartGharTankWaterVolume(coordinator, dev["id"]))
         # Cumulative consumption sensor — drives HA's Energy dashboard.
         entities.append(SmartGharTankConsumption(coordinator, dev["id"]))
+        # Spoken-friendly: used today / this week, last fill (local phrase).
+        entities.append(SmartGharTankUsagePeriod(coordinator, dev["id"], "today"))
+        entities.append(SmartGharTankUsagePeriod(coordinator, dev["id"], "week"))
+        entities.append(SmartGharTankLastFill(coordinator, dev["id"]))
+
+    if arrival_times(entry) and any(
+        d.get("kind") == DEVICE_KIND_TANK for d in coordinator.devices
+    ):
+        entities.append(SmartGharNextArrival(coordinator, arrival_times(entry)))
 
     # Entity service: smartghar.reset_consumption — zero a tank's cumulative
     # consumption total (target the consumption sensor entity). Registered once

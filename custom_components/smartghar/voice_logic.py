@@ -186,3 +186,15 @@ def dedupe_aliases(existing: list[str], new: list[str]) -> list[str]:
             have.add(a.casefold())
             out.append(a)
     return out
+
+
+# ------------------------------------------------------------ usage periods
+
+def day_start(now: datetime) -> datetime:
+    """Local midnight of `now`'s day."""
+    return now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def week_start(now: datetime) -> datetime:
+    """Local midnight of the Monday of `now`'s week."""
+    return day_start(now) - timedelta(days=now.weekday())
