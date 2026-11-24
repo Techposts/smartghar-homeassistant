@@ -197,6 +197,20 @@ class SmartGharHubClient:
         POST /api/switches/resume."""
         return await self._post_query("/api/switches/resume", {"addr": addr})
 
+    async def get_state(self) -> dict[str, Any]:
+        """Full legacy device state. GET /api/state.
+
+        Auvra's voice settings live here (`voice {...}`), not on the v1 API.
+        """
+        return await self._get("/api/state")
+
+    async def set_keys(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """Write legacy settings. POST /api/set {"key": value, ...}.
+
+        Answers {"ok": bool, "rejected": [key, ...]} (same shape as the v1 PUT).
+        """
+        return await self._post("/api/set", fields) or {}
+
     async def get_led(self) -> dict[str, Any]:
         """Hub LED config — count, brightness, per-tank colors."""
         return await self._get("/api/v1/hub/led")

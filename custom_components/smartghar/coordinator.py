@@ -92,6 +92,21 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except SmartGharApiError as err:
             _LOGGER.debug("Switches unavailable on hub %s: %s", self.hub_id, err)
 
+        # Voice settings (Auvra firmware with a mic): /api/state -> voice {...}.
+        # Anything but a voice block (404 on TankSync hubs and older Auvra
+        # firmware, an odd reply) just means "no voice".
+        voice: dict[str, Any] = {}
+        if info.get("product") == "auvra":
+            try:
+                state = await self.client.get_state()
+            except (SmartGharApiError, SmartGharCannotConnect) as err:
+                _LOGGER.debug("Voice state unavailable on hub %s: %s", self.hub_id, err)
+                voice = self.voice  # a blip must not make the entities vanish
+            else:
+                block = state.get("voice") if isinstance(state, dict) else None
+                if isinstance(block, dict):
+                    voice = block
+
         if generation != self._ws_generation and self.data:
             # A WS push arrived while this poll was in flight (typically the
             # refresh after a command: the GET is answered before the device
@@ -104,6 +119,7 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "led": led,
             "buzzer": buzzer,
             "switches": switches,
+            "voice": voice,
         }
 
     @property
@@ -128,6 +144,11 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def buzzer_available(self) -> bool:
         """True when the hub responded to /api/v1/hub/buzzer (rx-v2.8.4+)."""
         return bool(self.buzzer)
+
+    @property
+    def voice(self) -> dict[str, Any]:
+        """The unit's `voice` block from /api/state ({} when it has none)."""
+        return self.data.get("voice", {}) if self.data else {}
 
     @property
     def switches(self) -> list[dict[str, Any]]:
