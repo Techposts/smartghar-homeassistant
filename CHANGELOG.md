@@ -13,6 +13,8 @@ All notable changes to the SmartGhar Home Assistant integration. Versions follow
 - **Voice settings**: switches Voice assistant, Microphone mute, Listening tone, Echo cancellation (when the firmware
   has it), Show to stock Wyoming discovery; selects Follow-up, Wake word sensitivity, Listening tone style; number
   Music ducking depth; button Talk (push to talk). Read from `/api/state`, written with `/api/set`.
+- **Wake word select.** Choose which wake word the unit listens for (for example Hey Jarvis or Hey Auvra). The options
+  come from `voice.wake_words` in `/api/state`, so the list follows the firmware; no select on firmware without it.
 - **One device, no auto-delete**: the unit's `wyoming_advertise` is turned off so the stock Wyoming integration stops
   discovering it. If a stock entry already drives the unit, the satellite waits and a Repairs issue offers to remove
   that entry, only after confirmation. Removing the integration or unticking the option turns advertising back on.

@@ -30,6 +30,7 @@ from .voice_logic import (
     KEY_TALK,
     SETTINGS,
     VoiceSetting,
+    option_ids,
     setting_available,
     voice_supported,
 )
@@ -111,9 +112,16 @@ class VoiceSelect(_VoiceSettingEntity, SelectEntity):
         self._attr_options = list(setting.options)
 
     @property
+    def options(self) -> list[str]:
+        # The wake word list comes from the unit (what its firmware carries).
+        if self._setting.options_key:
+            return option_ids(self.coordinator.voice, self._setting.options_key)
+        return list(self._setting.options)
+
+    @property
     def current_option(self) -> str | None:
         raw = self._raw
-        return raw if isinstance(raw, str) and raw in self._setting.options else None
+        return raw if isinstance(raw, str) and raw in self.options else None
 
     async def async_select_option(self, option: str) -> None:
         await self._write(option)

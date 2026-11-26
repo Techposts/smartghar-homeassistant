@@ -48,6 +48,13 @@
           "high": "ज़्यादा"
         }
       },
+      "wake_word": {
+        "name": "वेक वर्ड",
+        "state": {
+          "jarvis": "Hey Jarvis",
+          "hey_auvra": "Hey Auvra (बीटा)"
+        }
+      },
       "tone_style": {
         "name": "सुनने की आवाज़ की शैली"
       },

@@ -117,6 +117,24 @@ async def test_voice_entities_and_writes(hass, setup_auvra, aioclient_mock):
     ]
 
 
+async def test_wake_word_select_from_unit_list(hass, setup_auvra, aioclient_mock):
+    words = [{"id": "jarvis", "phrase": "Hey Jarvis"}, {"id": "hey_auvra", "phrase": "Hey Auvra (beta)"}]
+    await setup_auvra(V12_INFO, v12_devices(), state=_state(wake_word="jarvis", wake_words=words))
+    eid = _eid(hass, "select", "wake_word")
+    assert eid and hass.states.get(eid).state == "jarvis"
+    assert hass.states.get(eid).attributes["options"] == ["jarvis", "hey_auvra"]
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": eid, "option": "hey_auvra"}, blocking=True
+    )
+    assert {"wake_word": "hey_auvra"} in calls(aioclient_mock, "POST", "/api/set")
+
+
+async def test_no_wake_word_select_on_older_firmware(hass, setup_auvra):
+    # Older firmware reports `wake_word` as the phrase and has no list: no select.
+    await setup_auvra(V12_INFO, v12_devices(), state=_state(wake_word="Jarvis"))
+    assert _eid(hass, "select", "wake_word") is None
+
+
 async def test_optional_aec_appears_when_reported(hass, setup_auvra):
     await setup_auvra(V12_INFO, v12_devices(), state=_state(aec=False))
     assert _eid(hass, "switch", "voice_aec")

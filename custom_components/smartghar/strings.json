@@ -261,6 +261,13 @@
           "high": "High"
         }
       },
+      "wake_word": {
+        "name": "Wake word",
+        "state": {
+          "jarvis": "Hey Jarvis",
+          "hey_auvra": "Hey Auvra (beta)"
+        }
+      },
       "tone_style": {
         "name": "Listening tone style"
       },

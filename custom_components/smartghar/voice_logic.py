@@ -7,7 +7,8 @@ The unit's voice block (GET /api/state -> voice) carries, among others:
     enabled, muted, mic (hardware present), state, ha_connected, duck_db,
     wake_sens "low|normal|high", advertise, tone, tone_style "A|B|C",
     follow_up "off|on|question", aec (only on firmware that has it),
-    port (only if the firmware reports it).
+    wake_word (the model id in use), wake_words [{id, phrase}] (the choices; only
+    on firmware with a selectable wake word), port (only if the firmware reports it).
 Writes go to POST /api/set with the keys in SETTINGS below.
 """
 from __future__ import annotations
@@ -30,7 +31,8 @@ class VoiceSetting:
     write: str          # key for POST /api/set
     kind: str           # "switch" | "select" | "number"
     options: tuple[str, ...] = ()
-    optional: bool = False   # entity only when the unit reports `read`
+    optional: bool = False   # entity only when the unit reports `read` (or `options_key`)
+    options_key: str = ""    # voice-block list of {"id", "phrase"} the options come from (else `options`)
 
 
 SETTINGS: tuple[VoiceSetting, ...] = (
@@ -43,6 +45,8 @@ SETTINGS: tuple[VoiceSetting, ...] = (
                  ("off", "on", "question")),
     VoiceSetting("wake_sens", "wake_sens", "wake_sens", "select",
                  ("low", "normal", "high")),
+    VoiceSetting("wake_word", "wake_word", "wake_word", "select",
+                 optional=True, options_key="wake_words"),
     VoiceSetting("tone_style", "tone_style", "voice_tone_style", "select",
                  ("A", "B", "C")),
     VoiceSetting("duck_db", "duck_db", "duck_db", "number"),
@@ -65,7 +69,17 @@ def voice_port(voice: dict[str, Any] | None) -> int:
 
 
 def setting_available(setting: VoiceSetting, voice: dict[str, Any] | None) -> bool:
-    return not setting.optional or (voice is not None and setting.read in voice)
+    if not setting.optional:
+        return True
+    return voice is not None and (setting.options_key or setting.read) in voice
+
+
+def option_ids(voice: dict[str, Any] | None, key: str) -> list[str]:
+    """Ids from a voice-block list of {"id", "phrase"}; anything malformed is skipped."""
+    items = (voice or {}).get(key)
+    if not isinstance(items, list):
+        return []
+    return [i["id"] for i in items if isinstance(i, dict) and isinstance(i.get("id"), str) and i["id"]]
 
 
 # ----------------------------------------------------------- local time phrases
