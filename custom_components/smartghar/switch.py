@@ -79,6 +79,20 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
+# Hub stop-reason codes (/api/switches stop_reason); same wording as the hub web UI.
+SW_STOP_TEXT: dict[int, str] = {
+    0: "",
+    1: "tank full",
+    2: "max runtime reached",
+    3: "dry-run protection",
+    4: "source tank empty",
+    5: "manual",
+    6: "switch fault",
+    7: "lost tank data while pumping",
+    8: "switch stopped itself (lost the Hub or restarted)",
+}
+
+
 class SmartGharHubBuzzerEnabled(
     CoordinatorEntity[SmartGharCoordinator], SwitchEntity
 ):
@@ -168,6 +182,13 @@ class SmartGharPumpRelay(CoordinatorEntity[SmartGharCoordinator], SwitchEntity):
             "commanded": bool(sw.get("relay_desired")),
             "automation_paused": bool(rule.get("manual_hold")),
             "automation_enabled": bool(rule.get("enabled")),
+            "stop_reason": SW_STOP_TEXT.get(sw.get("stop_reason"), ""),
+            "arming": bool(sw.get("arming")),
+            "live_wait": bool(sw.get("live_wait")),
+            "fast": bool(sw.get("fast")),
+            "hold_left_s": sw.get("hold_left_s"),
+            "tank_reading_interval_s": rule.get("fast_s"),
+            "failsafe_s": rule.get("failsafe_s"),
         }
 
     async def async_turn_on(self, **kwargs: Any) -> None:
