@@ -5,13 +5,15 @@ none fetches anything itself. Created only when the hub has that endpoint.
 """
 from __future__ import annotations
 
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorDeviceClass,
-    SensorEntity,
     SensorEntityDescription,
+    SensorExtraStoredData,
     SensorStateClass,
 )
 from homeassistant.const import UnitOfEnergy, UnitOfTime, UnitOfVolume
@@ -85,7 +87,30 @@ def pump_sensors_for(coordinator: SmartGharCoordinator) -> list[SmartGharPumpSen
     return out
 
 
-class SmartGharPumpSensor(CoordinatorEntity[SmartGharCoordinator], SensorEntity):
+@dataclass
+class _WaterStored(SensorExtraStoredData):
+    """Water total plus the day it belongs to and the runs already counted."""
+
+    day: int = 0
+    run_ids: list[int] | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, restored: dict[str, Any]) -> _WaterStored | None:
+        base = SensorExtraStoredData.from_dict(restored)
+        if base is None:
+            return None
+        return cls(
+            base.native_value,
+            base.native_unit_of_measurement,
+            int(restored.get("day") or 0),
+            [int(i) for i in restored.get("run_ids") or []],
+        )
+
+
+class SmartGharPumpSensor(CoordinatorEntity[SmartGharCoordinator], RestoreSensor):
     _attr_has_entity_name = True
 
     def __init__(
@@ -95,6 +120,31 @@ class SmartGharPumpSensor(CoordinatorEntity[SmartGharCoordinator], SensorEntity)
         self.entity_description = description
         self._addr = addr
         self._attr_unique_id = f"smartghar_{coordinator.hub_id}_switch_{addr}_{description.key}"
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if self.entity_description.key != "pump_water_today":
+            return
+        extra = await self.async_get_last_extra_data()
+        last = _WaterStored.from_dict(extra.as_dict()) if extra else None
+        if last is not None and last.day and last.native_value is not None:
+            try:
+                litres = float(last.native_value)
+            except (TypeError, ValueError):
+                return
+            self.coordinator.restore_pump_water(self._addr, last.day, litres, last.run_ids or [])
+
+    @property
+    def extra_restore_state_data(self) -> SensorExtraStoredData:
+        if self.entity_description.key != "pump_water_today":
+            return super().extra_restore_state_data
+        day = int((self.coordinator.pump_history or {}).get("today") or 0)
+        return _WaterStored(
+            self.native_value,
+            self.native_unit_of_measurement,
+            day,
+            self.coordinator.pump_water_run_ids(self._addr),
+        )
 
     @property
     def device_info(self) -> DeviceInfo:

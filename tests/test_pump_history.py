@@ -4,7 +4,9 @@ from __future__ import annotations
 import copy
 from unittest.mock import AsyncMock, patch
 
+from homeassistant.core import State
 from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import mock_restore_cache_with_extra_data
 
 from custom_components.smartghar.const import DOMAIN
 
@@ -19,6 +21,8 @@ from .fixtures_pump import (
     switches_online,
     switches_with_time_rules,
 )
+
+WATER_UID = f"smartghar_{HUB_ID}_switch_1_pump_water_today"
 
 RELAY = "switch.smart_switch_bad8"
 
@@ -185,3 +189,58 @@ async def setup_auvra_no_switch(hass, aioclient_mock):
     await coord._history_tick()
     await coord.async_refresh()
     return len(_hist_calls(aioclient_mock))
+
+
+def _restore_water(hass, litres, day, run_ids):
+    """Pre-register the water sensor and give it a stored state, as after an HA restart."""
+    eid = er.async_get(hass).async_get_or_create(
+        "sensor", DOMAIN, WATER_UID, suggested_object_id="water_today_restored"
+    ).entity_id
+    mock_restore_cache_with_extra_data(
+        hass,
+        [(
+            State(eid, str(litres)),
+            {
+                "native_value": litres,
+                "native_unit_of_measurement": "L",
+                "day": day,
+                "run_ids": run_ids,
+            },
+        )],
+    )
+    return eid
+
+
+def _run_starts(hist):
+    return [r["t"] for r in hist["runs"] if not r["open"]]
+
+
+async def test_water_survives_restart_when_hub_returns_fewer_runs(hass, setup_auvra):
+    full = history_runs()
+    ids = _run_starts(full)
+    eid = _restore_water(hass, 350.0, 20261127, ids)
+    fewer = history_runs()
+    fewer["runs"] = [fewer["runs"][0], fewer["runs"][1]]  # morning run fell out
+    entry = await setup_auvra(INFO, LIVE_DEVICES, switches=LIVE_SWITCHES, history=fewer)
+    assert hass.states.get(eid).state == "350.0"
+    # a genuinely new run today adds on top, never below the restored value
+    coord = hass.data[DOMAIN][entry.entry_id]
+    newer = history_runs()
+    newer["runs"] = [dict(newer["runs"][1], t=newer["runs"][1]["t"] + 600, t0=55, t1=60)]
+    with patch.object(coord.client, "get_pump_history", AsyncMock(return_value=newer)):
+        await coord._history_tick()
+    await hass.async_block_till_done()
+    assert hass.states.get(eid).state == "400.0"
+
+
+async def test_water_restore_on_new_day_resets_to_zero(hass, setup_auvra):
+    eid = _restore_water(hass, 350.0, 20261127, _run_starts(history_runs()))
+    await setup_auvra(INFO, LIVE_DEVICES, switches=LIVE_SWITCHES, history=history_runs(today=20261128))
+    assert hass.states.get(eid).state == "0.0"
+
+
+async def test_water_no_double_count_after_restart(hass, setup_auvra):
+    full = history_runs()
+    eid = _restore_water(hass, 350.0, 20261127, _run_starts(full))
+    await setup_auvra(INFO, LIVE_DEVICES, switches=LIVE_SWITCHES, history=full)
+    assert hass.states.get(eid).state == "350.0"

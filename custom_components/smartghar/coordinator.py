@@ -71,6 +71,9 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # (switch, run start) -> (tank % at start, at stop), finished runs of today
         self._water_ledger: dict[tuple[int, int], tuple[int, int]] = {}
         self._ledger_day = 0
+        # Water restored after an HA restart: addr -> (day, litres, run starts
+        # already counted). Used only while the hub's today equals that day.
+        self._water_restored: dict[int, tuple[int, float, set[int]]] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         generation = self._ws_generation
@@ -193,10 +196,26 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Litres pumped today: finished runs seen today, counted once each,
         so the total only grows during a day."""
         total = 0.0
-        for (a, _t), (t0, t1) in self._water_ledger.items():
-            if a == addr:
+        counted: set[int] = set()
+        rest = self._water_restored.get(addr)
+        if rest and rest[0] == self._ledger_day:
+            total, counted = rest[1], rest[2]
+        for (a, t), (t0, t1) in self._water_ledger.items():
+            if a == addr and t not in counted:
                 total += run_litres({"t0": t0, "t1": t1}, self.tank_capacity_l(addr)) or 0.0
         return round(total, 1)
+
+    def pump_water_run_ids(self, addr: int) -> list[int]:
+        """Starts of every run counted in today's water total."""
+        ids = {t for (a, t) in self._water_ledger if a == addr}
+        rest = self._water_restored.get(addr)
+        if rest and rest[0] == self._ledger_day:
+            ids |= rest[2]
+        return sorted(ids)
+
+    def restore_pump_water(self, addr: int, day: int, litres: float, run_ids: list[int]) -> None:
+        """Seed today's water total from the last stored state (HA restart)."""
+        self._water_restored[addr] = (day, float(litres), {int(i) for i in run_ids})
 
     def tank_capacity_l(self, addr: int) -> float | None:
         """Capacity of the tank a switch is bound to, when the hub knows it."""
@@ -215,6 +234,9 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if today != self._ledger_day:
             self._water_ledger.clear()
             self._ledger_day = today
+            self._water_restored = {
+                a: r for a, r in self._water_restored.items() if r[0] == today
+            }
         for run in hist.get("runs") or []:
             addr = run.get("a")
             if addr is None or run.get("open"):
