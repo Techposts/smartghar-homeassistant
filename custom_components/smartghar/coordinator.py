@@ -19,11 +19,12 @@ import logging
 from typing import Any
 
 import aiohttp
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import SmartGharApiError, SmartGharCannotConnect, SmartGharHubClient
-from .const import DOMAIN, SCAN_INTERVAL
+from .const import DOMAIN, SCAN_INTERVAL, SWITCH_SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,6 +56,9 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Bumped on every applied WS snapshot/event. A poll that started
         # before a push landed must not overwrite the pushed device state.
         self._ws_generation = 0
+        self._switch_unsub: CALLBACK_TYPE | None = None
+        self._switch_busy = False
+        self._switch_err_logged = False
 
     async def _async_update_data(self) -> dict[str, Any]:
         generation = self._ws_generation
@@ -168,6 +172,41 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return path
         return None
 
+    def merge_switches(self, switches: list[dict[str, Any]]) -> None:
+        """Replace the switch list and notify listeners. Unlike
+        async_set_updated_data this does not restart the 30 s poll timer, so
+        a 2 s switch tick can never starve the full poll."""
+        if not self.data or self.data.get("switches") == switches:
+            return
+        self.data = {**self.data, "switches": switches}
+        self.async_update_listeners()
+
+    async def _switch_tick(self, _now: Any = None) -> None:
+        # Only hubs that have paired switches; skip while a fetch is in flight.
+        if self._switch_busy or not self.switches:
+            return
+        self._switch_busy = True
+        try:
+            self.merge_switches(await self.client.get_switches())
+            self._switch_err_logged = False
+        except SmartGharApiError as err:
+            if not self._switch_err_logged:
+                self._switch_err_logged = True
+                _LOGGER.debug("Switch refresh on hub %s failed: %s", self.hub_id, err)
+        finally:
+            self._switch_busy = False
+
+    def start_switch_poll(self) -> None:
+        if self._switch_unsub is None:
+            self._switch_unsub = async_track_time_interval(
+                self.hass, self._switch_tick, SWITCH_SCAN_INTERVAL
+            )
+
+    def stop_switch_poll(self) -> None:
+        if self._switch_unsub is not None:
+            self._switch_unsub()
+            self._switch_unsub = None
+
     def start_ws(self) -> None:
         """Spawn the WS background task if the hub declares a stream.
 
@@ -176,6 +215,7 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         that opts out of push), stays on polling only — no reconnect
         loop, no log noise. Idempotent.
         """
+        self.start_switch_poll()
         if self._ws_task and not self._ws_task.done():
             return
         ws_path = self._ws_path_from_contract()
@@ -193,6 +233,7 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def stop_ws(self) -> None:
         self._stop = True
+        self.stop_switch_poll()
         if self._ws_task:
             self._ws_task.cancel()
             try:

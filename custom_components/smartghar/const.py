@@ -22,6 +22,8 @@ DEFAULT_TIMEOUT_S = 10.0
 # Polling intervals — water levels change slowly so 30s is plenty. Real-time
 # push lands in v0.2.0 once firmware Phase 1.3 ships the WebSocket endpoint.
 SCAN_INTERVAL = timedelta(seconds=30)
+# Smart Switch state only (GET /api/switches); everything else stays on SCAN_INTERVAL.
+SWITCH_SCAN_INTERVAL = timedelta(seconds=2)
 
 # Device-kind taxonomy (mirrors LoRa device_kind byte in hub firmware).
 DEVICE_KIND_TANK = "tank"

@@ -13,6 +13,8 @@ specific conditions if a user wants to script around alert behavior.
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Any
 
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
@@ -34,8 +36,14 @@ from .const import (
 from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
 from .speaker_entity import SmartGharSpeakerConfigEntity, speaker_ids_with
 from .speaker_logic import CAP_EQ
+from .api import SmartGharApiError
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info, switch_device_info
+
+_LOGGER = logging.getLogger(__name__)
+
+SWITCH_CONFIRM_TIMEOUT_S = 6.0
+SWITCH_CONFIRM_POLL_S = 0.3
 
 
 async def async_setup_entry(
@@ -134,6 +142,9 @@ class SmartGharPumpRelay(CoordinatorEntity[SmartGharCoordinator], SwitchEntity):
         super().__init__(coordinator)
         self._addr = addr
         self._attr_unique_id = f"smartghar_{coordinator.hub_id}_switch_{addr}_relay"
+        # Commanded state shown until the switch confirms (or the deadline).
+        self._pending: bool | None = None
+        self._confirm_task: asyncio.Task | None = None
 
     @property
     def _sw(self) -> dict[str, Any] | None:
@@ -152,6 +163,8 @@ class SmartGharPumpRelay(CoordinatorEntity[SmartGharCoordinator], SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
+        if self._pending is not None:
+            return self._pending
         sw = self._sw
         return bool(sw.get("relay_on")) if sw else None
 
@@ -166,12 +179,57 @@ class SmartGharPumpRelay(CoordinatorEntity[SmartGharCoordinator], SwitchEntity):
         }
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self.coordinator.client.set_switch_relay(self._addr, True)
-        await self.coordinator.async_request_refresh()
+        await self._command(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        await self.coordinator.client.set_switch_relay(self._addr, False)
-        await self.coordinator.async_request_refresh()
+        await self._command(False)
+
+    async def _command(self, on: bool) -> None:
+        self._cancel_confirm()
+        await self.coordinator.client.set_switch_relay(self._addr, on)
+        # Show the target at once; the hub only learns the real state ~0.1 s
+        # later, so an immediate refresh would read the old one and flip back.
+        self._pending = on
+        self.async_write_ha_state()
+        self._confirm_task = self.hass.async_create_background_task(
+            self._confirm(on), name=f"smartghar_switch_confirm_{self._addr}"
+        )
+
+    def _cancel_confirm(self) -> None:
+        if self._confirm_task and not self._confirm_task.done():
+            self._confirm_task.cancel()
+        self._confirm_task = None
+
+    async def _confirm(self, on: bool) -> None:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + SWITCH_CONFIRM_TIMEOUT_S
+        confirmed = False
+        try:
+            while loop.time() < deadline:
+                try:
+                    switches = await self.coordinator.client.get_switches()
+                except SmartGharApiError:
+                    switches = None
+                if switches is not None:
+                    self.coordinator.merge_switches(switches)
+                    sw = next((s for s in switches if s.get("address") == self._addr), None)
+                    if sw is not None and bool(sw.get("relay_on")) == on:
+                        confirmed = True
+                        break
+                await asyncio.sleep(SWITCH_CONFIRM_POLL_S)
+        except asyncio.CancelledError:
+            raise  # a newer command owns the pending state now
+        if not confirmed:
+            _LOGGER.warning(
+                "Pump switch %s did not confirm %s within %.0f s",
+                self._addr, "ON" if on else "OFF", SWITCH_CONFIRM_TIMEOUT_S,
+            )
+        self._pending = None
+        self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._cancel_confirm()
+        await super().async_will_remove_from_hass()
 
 
 class SmartGharSpeakerNightMode(CoordinatorEntity[SmartGharCoordinator], SwitchEntity):
