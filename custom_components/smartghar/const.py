@@ -24,6 +24,8 @@ DEFAULT_TIMEOUT_S = 10.0
 SCAN_INTERVAL = timedelta(seconds=30)
 # Smart Switch state only (GET /api/switches); everything else stays on SCAN_INTERVAL.
 SWITCH_SCAN_INTERVAL = timedelta(seconds=2)
+# Pump run history (GET /api/history/pump): one shared fetch, only with a paired switch.
+PUMP_HISTORY_SCAN_INTERVAL = timedelta(seconds=60)
 
 # Device-kind taxonomy (mirrors LoRa device_kind byte in hub firmware).
 DEVICE_KIND_TANK = "tank"

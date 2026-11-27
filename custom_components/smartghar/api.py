@@ -63,11 +63,11 @@ class SmartGharHubClient:
             h["Authorization"] = f"Bearer {self._token}"
         return h
 
-    async def _get(self, path: str) -> dict[str, Any]:
+    async def _get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         url = self._base / path.lstrip("/")
         try:
             async with self._session.get(
-                url, headers=self._headers(), timeout=self._timeout
+                url, headers=self._headers(), timeout=self._timeout, params=params
             ) as resp:
                 if resp.status == 401:
                     raise SmartGharInvalidAuth(f"Token rejected: {url}")
@@ -184,6 +184,12 @@ class SmartGharHubClient:
         coordinator treats an API error here as 'no switches')."""
         data = await self._get("/api/switches")
         return data.get("switches", [])
+
+    async def get_pump_history(self, runs: int = 3) -> dict[str, Any]:
+        """Pump run history: daily totals (35 days) + latest runs, newest first.
+        GET /api/history/pump?runs=N. Older hubs answer 404 (raised as
+        SmartGharApiError), which the coordinator reads as 'no history'."""
+        return await self._get("/api/history/pump", {"runs": int(runs)})
 
     async def set_switch_relay(self, addr: int, on: bool) -> dict[str, Any] | None:
         """Manually drive a switch's relay. Engages the hub's manual-hold so

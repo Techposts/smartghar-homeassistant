@@ -103,6 +103,24 @@
       },
       "next_water_arrival": {
         "name": "Next water arrival"
+      },
+      "pump_energy_today": {
+        "name": "Pump energy today"
+      },
+      "pump_runtime_today": {
+        "name": "Pump runtime today"
+      },
+      "pump_starts_today": {
+        "name": "Pump starts today"
+      },
+      "pump_water_today": {
+        "name": "Water pumped today"
+      },
+      "pump_dry_stops_7d": {
+        "name": "Dry-run stops, 7 days"
+      },
+      "pump_last_run": {
+        "name": "Last pump run"
       }
     },
     "text": {

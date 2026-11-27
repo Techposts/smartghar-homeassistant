@@ -24,7 +24,8 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import SmartGharApiError, SmartGharCannotConnect, SmartGharHubClient
-from .const import DOMAIN, SCAN_INTERVAL, SWITCH_SCAN_INTERVAL
+from .const import DOMAIN, PUMP_HISTORY_SCAN_INTERVAL, SCAN_INTERVAL, SWITCH_SCAN_INTERVAL
+from .pump_history import run_day, run_litres
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +60,16 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._switch_unsub: CALLBACK_TYPE | None = None
         self._switch_busy = False
         self._switch_err_logged = False
+        # Pump history (GET /api/history/pump): probed once, then one shared
+        # fetch every 60 s while a switch is paired. Kept off self.data so the
+        # 30 s poll and the 2 s switch tick never touch it.
+        self._history_unsub: CALLBACK_TYPE | None = None
+        self._history_busy = False
+        self._history_probed = False
+        self._pump_history: dict[str, Any] | None = None
+        self._last_runs: dict[int, dict[str, Any]] = {}
+        self._water_ledger: dict[tuple[int, int], float] = {}
+        self._ledger_day = 0
 
     async def _async_update_data(self) -> dict[str, Any]:
         generation = self._ws_generation
@@ -111,6 +122,11 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if isinstance(block, dict):
                     voice = block
 
+        # Pump history capability check, once. Older hubs answer 404: no
+        # history entities. A network blip leaves it unprobed for the next poll.
+        if switches and not self._history_probed:
+            await self._probe_history(switches)
+
         if generation != self._ws_generation and self.data:
             # A WS push arrived while this poll was in flight (typically the
             # refresh after a command: the GET is answered before the device
@@ -158,6 +174,98 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def switches(self) -> list[dict[str, Any]]:
         """Paired Smart Switches (empty on firmware without the feature)."""
         return self.data.get("switches", []) if self.data else []
+
+    @property
+    def pump_history_available(self) -> bool:
+        """True when the hub answered /api/history/pump with a history store."""
+        return bool(self._pump_history and self._pump_history.get("available"))
+
+    @property
+    def pump_history(self) -> dict[str, Any]:
+        return self._pump_history or {}
+
+    def last_pump_run(self, addr: int) -> dict[str, Any] | None:
+        """Newest finished run seen for a switch (kept across polls)."""
+        return self._last_runs.get(addr)
+
+    def pump_water_today_l(self, addr: int) -> float:
+        """Litres pumped today: finished runs seen today, counted once each,
+        so the total only grows during a day."""
+        total = 0.0
+        for (a, _t), litres in self._water_ledger.items():
+            if a == addr:
+                total += litres
+        return round(total, 1)
+
+    def tank_capacity_l(self, addr: int) -> float | None:
+        """Capacity of the tank a switch is bound to, when the hub knows it."""
+        sw = self.switch_by_addr(addr) or {}
+        tank = (sw.get("rule") or {}).get("tank_addr")
+        dev = self.device_by_id(tank) if tank else None
+        cap = (dev or {}).get("config", {}).get("capacity_l")
+        try:
+            return float(cap) if cap and float(cap) > 0 else None
+        except (TypeError, ValueError):
+            return None
+
+    def _ingest_history(self, hist: dict[str, Any]) -> None:
+        self._pump_history = hist
+        today = int(hist.get("today") or 0)
+        if today != self._ledger_day:
+            self._water_ledger.clear()
+            self._ledger_day = today
+        for run in hist.get("runs") or []:
+            addr = run.get("a")
+            if addr is None or run.get("open"):
+                continue
+            prev = self._last_runs.get(addr)
+            if prev is None or run.get("t", 0) >= prev.get("t", 0):
+                self._last_runs[addr] = run
+            if today and run_day(hist, run) == today:
+                litres = run_litres(run, self.tank_capacity_l(addr))
+                if litres:
+                    self._water_ledger.setdefault((addr, int(run["t"])), litres)
+
+    def _history_runs_wanted(self) -> int:
+        return min(30, 3 * max(1, len(self.switches)))
+
+    async def _probe_history(self, switches: list[dict[str, Any]]) -> None:
+        try:
+            hist = await self.client.get_pump_history(min(30, 3 * len(switches)))
+        except SmartGharCannotConnect:
+            return
+        except SmartGharApiError as err:
+            self._history_probed = True
+            _LOGGER.debug("Pump history unavailable on hub %s: %s", self.hub_id, err)
+            return
+        self._history_probed = True
+        if isinstance(hist, dict) and hist.get("available"):
+            self._ingest_history(hist)
+
+    async def _history_tick(self, _now: Any = None) -> None:
+        if self._history_busy or not self.switches or not self.pump_history_available:
+            return
+        self._history_busy = True
+        try:
+            hist = await self.client.get_pump_history(self._history_runs_wanted())
+            if isinstance(hist, dict) and hist.get("available"):
+                self._ingest_history(hist)
+                self.async_update_listeners()
+        except SmartGharApiError as err:
+            _LOGGER.debug("Pump history refresh on hub %s failed: %s", self.hub_id, err)
+        finally:
+            self._history_busy = False
+
+    def start_history_poll(self) -> None:
+        if self._history_unsub is None:
+            self._history_unsub = async_track_time_interval(
+                self.hass, self._history_tick, PUMP_HISTORY_SCAN_INTERVAL
+            )
+
+    def stop_history_poll(self) -> None:
+        if self._history_unsub is not None:
+            self._history_unsub()
+            self._history_unsub = None
 
     def switch_by_addr(self, addr: int) -> dict[str, Any] | None:
         for s in self.switches:
@@ -237,6 +345,7 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         loop, no log noise. Idempotent.
         """
         self.start_switch_poll()
+        self.start_history_poll()
         if self._ws_task and not self._ws_task.done():
             return
         ws_path = self._ws_path_from_contract()
@@ -255,6 +364,7 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def stop_ws(self) -> None:
         self._stop = True
         self.stop_switch_poll()
+        self.stop_history_poll()
         if self._ws_task:
             self._ws_task.cancel()
             try:

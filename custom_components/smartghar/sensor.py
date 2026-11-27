@@ -51,6 +51,7 @@ from .const import (
 from .coordinator import SmartGharCoordinator
 from .device_info import hub_device_info, subdevice_device_info, switch_device_info
 from .serial_entity import SmartGharSerialNodeEntity, async_add_serial_nodes
+from .pump_sensor import pump_sensors_for
 from .usage_sensor import (
     SmartGharNextArrival,
     SmartGharTankLastFill,
@@ -293,6 +294,8 @@ async def async_setup_entry(
             entities.append(
                 SmartGharSwitchSensor(coordinator, desc, sw["address"], field, scale)
             )
+
+    entities.extend(pump_sensors_for(coordinator))
 
     async_add_entities(entities)
 

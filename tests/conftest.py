@@ -49,6 +49,7 @@ def mock_device(
     stations: Any = None,
     state: dict[str, Any] | None = None,
     switches: Any = None,
+    history: Any = None,
 ) -> None:
     """Register the GET endpoints an Auvra answers, plus PUT/POST acks."""
     aioclient_mock.clear_requests()
@@ -60,6 +61,10 @@ def mock_device(
         aioclient_mock.get(f"{BASE}/api/switches", json=switches)
     else:
         aioclient_mock.get(f"{BASE}/api/switches", status=404, text="Not found")
+    if history is not None:
+        aioclient_mock.get(f"{BASE}/api/history/pump", json=history)
+    else:
+        aioclient_mock.get(f"{BASE}/api/history/pump", status=404, text="Not found")
     if stations is not None:
         aioclient_mock.get(f"{BASE}/api/v1/radio/stations", json=stations)
     else:
@@ -89,9 +94,9 @@ def setup_auvra(
     """Factory: mock the device with the given payloads and set up the entry."""
 
     async def _setup(
-        info, devices, stations=None, state=None, options=None, switches=None
+        info, devices, stations=None, state=None, options=None, switches=None, history=None
     ) -> MockConfigEntry:
-        mock_device(aioclient_mock, info, devices, stations, state, switches)
+        mock_device(aioclient_mock, info, devices, stations, state, switches, history)
         entry = MockConfigEntry(
             domain=DOMAIN,
             unique_id=HUB_ID,

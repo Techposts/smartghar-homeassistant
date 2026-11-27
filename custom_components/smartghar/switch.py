@@ -25,6 +25,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .api import SmartGharApiError
 from .const import (
@@ -98,7 +99,13 @@ SW_STOP_TEXT: dict[int, str] = {
     6: "switch fault",
     7: "lost tank data while pumping",
     8: "switch stopped itself (lost the Hub or restarted)",
+    9: "allowed hours ended",
 }
+
+# Time-rule fields a hub with pump time rules adds to each /api/switches entry.
+# Epoch seconds (or null) become ISO times; the rest pass through as sent.
+TIME_RULE_EPOCH_FIELDS = ("next_auto_start", "next_topup")
+TIME_RULE_PLAIN_FIELDS = ("in_allowed_hours", "time_wait", "time_rules_paused")
 
 
 class SmartGharHubBuzzerEnabled(
@@ -191,7 +198,7 @@ class SmartGharPumpRelay(CoordinatorEntity[SmartGharCoordinator], SwitchEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         sw = self._sw or {}
         rule = sw.get("rule", {})
-        return {
+        attrs = {
             "commanded": bool(sw.get("relay_desired")),
             "automation_paused": bool(rule.get("manual_hold")),
             "automation_enabled": bool(rule.get("enabled")),
@@ -203,6 +210,17 @@ class SmartGharPumpRelay(CoordinatorEntity[SmartGharCoordinator], SwitchEntity):
             "tank_reading_interval_s": rule.get("fast_s"),
             "failsafe_s": rule.get("failsafe_s"),
         }
+        # Only on hubs that send them (older firmware has no time rules).
+        for key in TIME_RULE_PLAIN_FIELDS:
+            if key in sw:
+                attrs[key] = sw[key]
+        for key in TIME_RULE_EPOCH_FIELDS:
+            if key in sw:
+                epoch = sw[key]
+                attrs[key] = (
+                    dt_util.utc_from_timestamp(epoch).isoformat() if epoch else None
+                )
+        return attrs
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._command(True)

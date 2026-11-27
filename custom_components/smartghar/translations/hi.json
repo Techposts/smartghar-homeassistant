@@ -12,6 +12,24 @@
       },
       "next_water_arrival": {
         "name": "पानी अगली बार कब आएगा"
+      },
+      "pump_energy_today": {
+        "name": "आज पंप की बिजली"
+      },
+      "pump_runtime_today": {
+        "name": "आज पंप चलने का समय"
+      },
+      "pump_starts_today": {
+        "name": "आज पंप कितनी बार चला"
+      },
+      "pump_water_today": {
+        "name": "आज पंप से भरा पानी"
+      },
+      "pump_dry_stops_7d": {
+        "name": "ड्राई-रन से रुके, 7 दिन"
+      },
+      "pump_last_run": {
+        "name": "पंप की आखिरी चलाई"
       }
     },
     "switch": {
