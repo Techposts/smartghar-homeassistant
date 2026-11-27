@@ -2,6 +2,17 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## v0.13.1 — TankSync Pump Switch: on/off shows at once
+
+### Fixed
+
+- **Pump Switch relay**: the switch entity shows the new state as soon as you turn it on or off, then confirms it
+  with the hub within about a second. Before, Home Assistant read the hub straight after the command (still the old
+  state) and then waited for the next 30 s poll, so the slider flipped back for several seconds.
+- **Pump Switch refresh**: switch state, power and current are read every 2 s (only `/api/switches`, a small reply),
+  so changes made on the switch's own button or on the hub page appear in Home Assistant within about 2 s. Tank
+  readings keep their 30 s poll.
+
 ## v0.13.0 — Auvra media: play_media, announcements, radio, EQ (schema 1.2)
 
 Builds against the additive schema 1.2 of the v1 API (Auvra firmware 0.10.0). Every new feature and entity is
