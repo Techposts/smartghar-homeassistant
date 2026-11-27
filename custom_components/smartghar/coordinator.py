@@ -68,7 +68,8 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._history_probed = False
         self._pump_history: dict[str, Any] | None = None
         self._last_runs: dict[int, dict[str, Any]] = {}
-        self._water_ledger: dict[tuple[int, int], float] = {}
+        # (switch, run start) -> (tank % at start, at stop), finished runs of today
+        self._water_ledger: dict[tuple[int, int], tuple[int, int]] = {}
         self._ledger_day = 0
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -192,9 +193,9 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Litres pumped today: finished runs seen today, counted once each,
         so the total only grows during a day."""
         total = 0.0
-        for (a, _t), litres in self._water_ledger.items():
+        for (a, _t), (t0, t1) in self._water_ledger.items():
             if a == addr:
-                total += litres
+                total += run_litres({"t0": t0, "t1": t1}, self.tank_capacity_l(addr)) or 0.0
         return round(total, 1)
 
     def tank_capacity_l(self, addr: int) -> float | None:
@@ -222,9 +223,9 @@ class SmartGharCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if prev is None or run.get("t", 0) >= prev.get("t", 0):
                 self._last_runs[addr] = run
             if today and run_day(hist, run) == today:
-                litres = run_litres(run, self.tank_capacity_l(addr))
-                if litres:
-                    self._water_ledger.setdefault((addr, int(run["t"])), litres)
+                t0, t1 = run.get("t0"), run.get("t1")
+                if t0 is not None and t1 is not None and t1 > t0:
+                    self._water_ledger.setdefault((addr, int(run["t"])), (t0, t1))
 
     def _history_runs_wanted(self) -> int:
         return min(30, 3 * max(1, len(self.switches)))
