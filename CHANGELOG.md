@@ -2,6 +2,21 @@
 
 All notable changes to the SmartGhar Home Assistant integration. Versions follow [SemVer](https://semver.org).
 
+## v0.14.0 — Pump history and time rules
+
+### Added
+
+- **Pump history sensors** on each Smart Switch, for hubs whose firmware has pump history (older hubs simply do not get
+  them): Pump energy today (kWh, works in the Energy dashboard), Pump runtime today (minutes), Pump starts today,
+  Water pumped today (litres, only when the tank's capacity is known), Dry-run stops over the last 7 days, and Last pump
+  run (end time, with attributes for how long, kWh, how it started, why it stopped, tank level before and after, and
+  litres). The totals go back to zero at the hub's midnight.
+- **Time rules on the pump switch.** The pump switch shows in_allowed_hours, next_auto_start, next_topup, time_wait and
+  time_rules_paused as attributes when the hub sends them. A run that ended because the allowed hours ended now reads
+  "allowed hours ended".
+- The history is read once a minute, in one request shared by all the sensors, and only when a switch is paired.
+- Hindi names for the new sensors.
+
 ## Unreleased — Auvra voice on the same device, voice-ready
 
 ### Added

@@ -22,7 +22,7 @@
     "pyserial-asyncio-fast==0.16",
     "wyoming==1.10.2"
   ],
-  "version": "0.13.0",
+  "version": "0.14.0",
   "zeroconf": [
     "_smartghar._tcp.local."
   ]
